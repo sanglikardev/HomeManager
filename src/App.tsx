@@ -1,4 +1,3 @@
-import type { Session } from '@supabase/supabase-js';
 import { BookOpen, CalendarCheck, Package, Settings, ShoppingCart, Users } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DishesView } from './components/DishesView';
@@ -10,7 +9,7 @@ import { ShoppingView } from './components/ShoppingView';
 import { TodayView } from './components/TodayView';
 import { ToastProvider } from './components/toast';
 import { inputCls, PrimaryButton, SecondaryButton } from './components/ui';
-import { CloudBackend, LocalBackend, supabase, supabaseConfigured, type Backend } from './store/backend';
+import { CloudBackend, getToken, LocalBackend, signOut, supabaseConfigured, type Backend } from './store/backend';
 import { StoreProvider, useStore } from './store/store';
 import type { AppData } from './types';
 
@@ -26,7 +25,7 @@ export default function App() {
   const cloud = supabaseConfigured();
   const backend = useMemo<Backend>(() => (cloud ? new CloudBackend() : new LocalBackend()), [cloud]);
   const [boot, setBoot] = useState<Boot>({ state: 'loading' });
-  const [session, setSession] = useState<Session | null | undefined>(cloud ? undefined : null);
+  const [token, setTokenState] = useState<string | null>(() => (cloud ? getToken() : null));
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -35,31 +34,28 @@ export default function App() {
       if (data) setBoot({ state: 'ready', data });
       else setBoot({ state: cloud ? 'nohousehold' : 'setup' });
     } catch (e) {
-      setBoot({ state: 'error', message: e instanceof Error ? e.message : String(e) });
+      // An expired session clears the token, which shows the sign-in screen.
+      if (cloud && !getToken()) setBoot({ state: 'signin' });
+      else setBoot({ state: 'error', message: e instanceof Error ? e.message : String(e) });
     }
   }, [backend, cloud]);
 
+  // Sign-in and sign-out (cloud) update the stored token and fire this event.
   useEffect(() => {
-    if (!cloud) {
-      load();
+    if (!cloud) return;
+    const onAuth = () => setTokenState(getToken());
+    window.addEventListener('homemanager-auth', onAuth);
+    return () => window.removeEventListener('homemanager-auth', onAuth);
+  }, [cloud]);
+
+  useEffect(() => {
+    if (cloud && !token) {
+      setBoot({ state: 'signin' });
       return;
     }
-    const auth = supabase().auth;
-    auth.getSession().then(({ data }) => setSession(data.session));
-    const { data: sub } = auth.onAuthStateChange((_e, s) => setSession(s));
-    return () => sub.subscription.unsubscribe();
-  }, [cloud, load]);
-
-  // Signed in or out (cloud): load or show the sign-in screen.
-  const userId = session?.user.id;
-  useEffect(() => {
-    if (!cloud || session === undefined) return;
-    if (!userId) setBoot({ state: 'signin' });
-    else {
-      setBoot({ state: 'loading' });
-      load();
-    }
-  }, [cloud, userId, session === undefined, load]); // eslint-disable-line react-hooks/exhaustive-deps
+    setBoot({ state: 'loading' });
+    load();
+  }, [cloud, token, load]);
 
   const create = async (data: AppData) => {
     setBusy(true);
@@ -149,7 +145,7 @@ function JoinOrCreate({ backend, onCreate, onJoined }: { backend: Backend; onCre
         </SecondaryButton>
         {error && <p className="mt-2 text-sm text-rose-600">{error}</p>}
       </div>
-      <button onClick={() => supabase().auth.signOut()} className="text-sm text-stone-500">
+      <button onClick={() => signOut()} className="text-sm text-stone-500">
         Sign out
       </button>
     </div>

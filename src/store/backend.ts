@@ -5,6 +5,8 @@ import type { AppData, Household } from '../types';
 // "local" keeps data in this browser (no setup needed, handy for trying it
 // out). "cloud" is Supabase, shared by the whole family. All Supabase tables
 // are prefixed hm_ because, for now, they live in the Samarth project.
+// Cloud sign-in is HomeManager's own username + password (see
+// supabase/migrations/0002_username_login.sql), not Supabase Auth.
 
 export type TableName = 'items' | 'dishes' | 'meals' | 'shopping' | 'events';
 
@@ -98,8 +100,8 @@ export function resetLocalData() {
 const toSnake = (k: string) => k.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`);
 const toCamel = (k: string) => k.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase());
 
-function rowToDb(row: object, householdId: string): Record<string, unknown> {
-  const out: Record<string, unknown> = { household_id: householdId };
+function rowToDb(row: object): Record<string, unknown> {
+  const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(row)) out[toSnake(k)] = v;
   return out;
 }
@@ -121,73 +123,78 @@ let client: SupabaseClient | null = null;
 export function supabase(): SupabaseClient {
   if (!client) {
     client = createClient(import.meta.env.VITE_SUPABASE_URL as string, import.meta.env.VITE_SUPABASE_ANON_KEY as string, {
-      auth: { storageKey: 'homemanager-auth' },
+      auth: { persistSession: false, autoRefreshToken: false },
     });
   }
   return client;
 }
 
+// ---------- cloud session (username + password, token in this browser) ----------
+
+const TOKEN_KEY = 'homemanager_token';
+
+export function getToken(): string | null {
+  try {
+    return localStorage.getItem(TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function setToken(token: string | null) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token);
+    else localStorage.removeItem(TOKEN_KEY);
+  } catch {
+    // ignore: the session then lasts only while the page is open
+  }
+  window.dispatchEvent(new Event('homemanager-auth'));
+}
+
+// Signs in, or creates the account the first time a username is used.
+export async function signIn(username: string, password: string): Promise<void> {
+  const { data, error } = await supabase().rpc('hm_login', { p_username: username, p_password: password });
+  if (error) throw new Error(error.message);
+  setToken(data as string);
+}
+
+export async function signOut(): Promise<void> {
+  const token = getToken();
+  setToken(null);
+  if (token) await supabase().rpc('hm_logout', { p_token: token });
+}
+
+// Every read and write goes through hm_* database functions that check the
+// session token, so the tables themselves stay closed to the public key.
 export class CloudBackend implements Backend {
   mode = 'cloud' as const;
-  private householdId: string | null = null;
 
-  private get db() {
-    return supabase();
-  }
-
-  private hid(): string {
-    if (!this.householdId) throw new Error('No household loaded');
-    return this.householdId;
+  private async call<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
+    const { data, error } = await supabase().rpc(fn, { p_token: getToken(), ...args });
+    if (error) {
+      if (error.message.includes('sign in again')) setToken(null);
+      throw new Error(error.message);
+    }
+    return data as T;
   }
 
   async load(): Promise<AppData | null> {
-    const { data: hh, error } = await this.db.from('hm_households').select('*').limit(1).maybeSingle();
-    if (error) throw error;
-    if (!hh) return null;
-    this.householdId = hh.id as string;
-    const household: Household = { id: hh.id, name: hh.name, inviteCode: hh.invite_code, settings: hh.settings };
-
-    const fetchAll = async <T,>(table: TableName, order: string): Promise<T[]> => {
-      const rows: T[] = [];
-      for (let from = 0; ; from += 1000) {
-        const { data, error: e } = await this.db
-          .from(TABLES[table])
-          .select('*')
-          .eq('household_id', household.id)
-          .order(order)
-          .range(from, from + 999);
-        if (e) throw e;
-        rows.push(...(data ?? []).map((r) => rowFromDb<T>(r)));
-        if (!data || data.length < 1000) break;
-      }
-      return rows;
+    const raw = await this.call<Record<string, unknown> | null>('hm_load');
+    if (!raw) return null;
+    const hh = raw.household as Record<string, unknown>;
+    const list = <T,>(k: string) => ((raw[k] as Record<string, unknown>[]) ?? []).map((r) => rowFromDb<T>(r));
+    return {
+      household: { id: hh.id as string, name: hh.name as string, inviteCode: hh.invite_code as string, settings: hh.settings as Household['settings'] },
+      items: list('items'),
+      dishes: list('dishes'),
+      meals: list('meals'),
+      shopping: list('shopping'),
+      events: list('events'),
     };
-    // Events only matter for undo and recent learning: keep the last 60 days.
-    const since = new Date(Date.now() - 60 * 864e5).toISOString();
-    const { data: ev, error: evErr } = await this.db
-      .from(TABLES.events)
-      .select('*')
-      .eq('household_id', household.id)
-      .gte('created_at', since)
-      .order('created_at');
-    if (evErr) throw evErr;
-
-    const [items, dishes, meals, shopping] = await Promise.all([
-      fetchAll<AppData['items'][number]>('items', 'name'),
-      fetchAll<AppData['dishes'][number]>('dishes', 'name'),
-      fetchAll<AppData['meals'][number]>('meals', 'created_at'),
-      fetchAll<AppData['shopping'][number]>('shopping', 'created_at'),
-    ]);
-    return { household, items, dishes, meals, shopping, events: (ev ?? []).map((r) => rowFromDb(r)) };
   }
 
   async createHousehold(data: AppData): Promise<AppData> {
-    const { data: hid, error } = await this.db.rpc('hm_create_household', {
-      p_name: data.household.name,
-      p_settings: data.household.settings,
-    });
-    if (error) throw error;
-    this.householdId = hid as string;
+    await this.call('hm_create_household', { p_name: data.household.name, p_settings: data.household.settings });
     await this.upsert('items', data.items);
     await this.upsert('dishes', data.dishes);
     const loaded = await this.load();
@@ -196,46 +203,43 @@ export class CloudBackend implements Backend {
   }
 
   async joinHousehold(code: string) {
-    const { error } = await this.db.rpc('hm_join_household', { p_code: code.trim().toUpperCase() });
-    if (error) throw error;
+    await this.call('hm_join_household', { p_code: code.trim().toUpperCase() });
   }
 
   async saveHousehold(h: Household) {
-    const { error } = await this.db.from('hm_households').update({ name: h.name, settings: h.settings }).eq('id', h.id);
-    if (error) throw error;
+    await this.call('hm_save_household', { p_name: h.name, p_settings: h.settings });
   }
 
   async upsert(table: TableName, rows: object[]) {
-    if (!rows.length) return;
-    const hid = this.hid();
-    for (let i = 0; i < rows.length; i += 500) {
-      const { error } = await this.db.from(TABLES[table]).upsert(rows.slice(i, i + 500).map((r) => rowToDb(r, hid)));
-      if (error) throw error;
+    for (let i = 0; i < rows.length; i += 200) {
+      await this.call('hm_upsert', { p_table: TABLES[table], p_rows: rows.slice(i, i + 200).map((r) => rowToDb(r)) });
     }
   }
 
   async remove(table: TableName, ids: string[]) {
     if (!ids.length) return;
-    const { error } = await this.db.from(TABLES[table]).delete().in('id', ids);
-    if (error) throw error;
+    await this.call('hm_delete', { p_table: TABLES[table], p_ids: ids });
   }
 
+  // Other family members' changes: poll a cheap version string.
   subscribe(onRemoteChange: () => void) {
-    if (!this.householdId) return () => {};
-    const filter = `household_id=eq.${this.householdId}`;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    const bump = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(onRemoteChange, 800);
+    let last: string | null = null;
+    let stopped = false;
+    const tick = async () => {
+      if (stopped || document.visibilityState !== 'visible') return;
+      try {
+        const v = await this.call<string>('hm_version');
+        if (last !== null && v !== last) onRemoteChange();
+        last = v;
+      } catch {
+        // offline or signed out: try again next tick
+      }
     };
-    const channel = this.db.channel(`hm-${this.householdId}`);
-    for (const t of ['hm_items', 'hm_dishes', 'hm_meals', 'hm_shopping']) {
-      channel.on('postgres_changes', { event: '*', schema: 'public', table: t, filter }, bump);
-    }
-    channel.subscribe();
+    tick();
+    const timer = setInterval(tick, 20000);
     return () => {
-      if (timer) clearTimeout(timer);
-      this.db.removeChannel(channel);
+      stopped = true;
+      clearInterval(timer);
     };
   }
 }

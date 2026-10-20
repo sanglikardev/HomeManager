@@ -1,6 +1,6 @@
 import { CalendarDays, Copy, LogOut, Users, Wrench } from 'lucide-react';
 import { useState } from 'react';
-import { resetLocalData, supabase } from '../store/backend';
+import { resetLocalData, signOut } from '../store/backend';
 import { useStore } from '../store/store';
 import { HouseholdForm } from './HouseholdForm';
 import { useToast } from './toast';
@@ -29,7 +29,7 @@ export function MoreView() {
           <h2 className="mb-1 flex items-center gap-2 font-semibold">
             <Users size={18} className="text-teal-700" /> Invite family
           </h2>
-          <p className="mb-3 text-sm text-stone-600">They open the app, create an account, choose "Join my family" and type this code.</p>
+          <p className="mb-3 text-sm text-stone-600">They open the app, sign in with a username and password of their own, choose "Join my family" and type this code.</p>
           <div className="flex items-center gap-2">
             <span className="flex-1 rounded-xl bg-stone-100 py-3 text-center font-mono text-2xl font-semibold tracking-[0.3em]">{household.inviteCode}</span>
             <button
@@ -75,7 +75,7 @@ export function MoreView() {
       </section>
 
       {cloud ? (
-        <button onClick={() => supabase().auth.signOut()} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-3 font-medium text-stone-700 ring-1 ring-stone-200">
+        <button onClick={() => signOut()} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-3 font-medium text-stone-700 ring-1 ring-stone-200">
           <LogOut size={18} /> Sign out
         </button>
       ) : (

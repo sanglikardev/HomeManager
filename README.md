@@ -6,7 +6,7 @@ you pick one, asks a couple of quick questions a day when it is unsure, and
 keeps the shopping list filled on its own.
 
 Stack (same as SamarthTaskManager): React 19 + TypeScript, Vite 6, Tailwind v4,
-Supabase (Postgres + Auth + Realtime), Cloudflare Pages. Installable to the
+Supabase (Postgres), Cloudflare Pages. Installable to the
 home screen as a PWA.
 
 ## How it works
@@ -40,9 +40,10 @@ function is prefixed `hm_` and nothing touches Samarth's tables.
 
 1. Supabase dashboard → SQL editor → paste and run
    `supabase/migrations/0001_homemanager.sql`.
-2. Sign-in is email + password (Supabase Auth). No dashboard settings are
-   needed. If "Confirm email" is on, the confirmation link may open the
-   project's Site URL (Samarth); the account is confirmed either way.
+2. Run `supabase/migrations/0002_username_login.sql`. Sign-in is
+   HomeManager's own username + password (the first sign-in with a new
+   username creates it), checked by `hm_*` database functions; Supabase Auth
+   is not used and needs no settings.
 3. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (see `.env.example`).
 
 ## Deploy (Cloudflare Workers)
