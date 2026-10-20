@@ -48,7 +48,10 @@ function is prefixed `hm_` and nothing touches Samarth's tables.
    settings as they are.
 5. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (see `.env.example`).
 
-## Deploy (Cloudflare Pages)
+## Deploy (Cloudflare Workers)
 
-Either connect the GitHub repo in Cloudflare Pages (build command
-`npm run build`, output `dist`, env vars above), or run `npm run deploy`.
+The app is deployed as a Cloudflare Worker named `homemanager` that serves
+`dist/` as static assets (`wrangler.jsonc`). Workers Builds is connected to
+this repo: every push to `main` runs `npm run build` and `npx wrangler deploy`.
+The public Supabase settings are in `.env.production`, so no dashboard
+variables are needed. To deploy by hand: `npm run deploy`.
