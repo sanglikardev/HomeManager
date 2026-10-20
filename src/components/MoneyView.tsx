@@ -141,7 +141,7 @@ export function MoneyView() {
           <div className="rounded-2xl bg-white p-6 text-center ring-1 ring-stone-200">
             <Receipt className="mx-auto mb-2 text-teal-700" />
             <p className="font-semibold text-stone-800">Nothing logged {isCurrent ? 'this month yet' : 'this month'}</p>
-            <p className="mt-1 text-sm text-stone-500">Tap ₹ on Today or "Expense" above. Amount and category is all it needs.</p>
+            <p className="mt-1 text-sm text-stone-500">Tap + or "Expense" above. Amount and category is all it needs.</p>
           </div>
         )}
       </section>

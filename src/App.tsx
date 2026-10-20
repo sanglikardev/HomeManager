@@ -1,13 +1,15 @@
-import { CalendarCheck, CalendarDays, ChefHat, IndianRupee, MessageSquare, Settings, ShoppingCart, Users, Wallet, Wrench } from 'lucide-react';
+import { CalendarCheck, CalendarDays, ChefHat, House, MessageSquare, Plus, Settings, Users, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { WeeklyChores } from './components/CalendarSection';
+import type { Dest } from './components/ComingUp';
 import { DishesView } from './components/DishesView';
 import { LoginScreen } from './components/LoginScreen';
 import { FeedbackSheet } from './components/FeedbackSheet';
-import { ExpenseSheet } from './components/MoneySheets';
 import { MoneyView } from './components/MoneyView';
 import { MoreView } from './components/MoreView';
 import { PantryView } from './components/PantryView';
 import { PlansView } from './components/PlansView';
+import { QuickAdd } from './components/QuickAdd';
 import { UpkeepView } from './components/UpkeepView';
 import { SetupWizard } from './components/SetupWizard';
 import { ShoppingView } from './components/ShoppingView';
@@ -159,46 +161,62 @@ function JoinOrCreate({ backend, onCreate, onJoined }: { backend: Backend; onCre
   );
 }
 
-type Tab = 'today' | 'kitchen' | 'shopping' | 'upkeep' | 'plans' | 'money' | 'more';
-const TABS: Tab[] = ['today', 'kitchen', 'shopping', 'upkeep', 'plans', 'money', 'more'];
+type Tab = 'today' | 'food' | 'home' | 'plans' | 'money' | 'more';
+type FoodPage = 'shopping' | 'pantry' | 'dishes';
+type HomePage = 'upkeep' | 'routine';
+const FOOD: FoodPage[] = ['shopping', 'pantry', 'dishes'];
+const HOME: HomePage[] = ['upkeep', 'routine'];
+
+// Old links (#kitchen, #upkeep...) still land on the right screen.
+function fromHash(h: string): { tab: Tab; food?: FoodPage; home?: HomePage } {
+  if (h === 'kitchen') return { tab: 'food', food: 'pantry' };
+  if (FOOD.includes(h as FoodPage)) return { tab: 'food', food: h as FoodPage };
+  if (HOME.includes(h as HomePage)) return { tab: 'home', home: h as HomePage };
+  if (['today', 'food', 'home', 'plans', 'money', 'more'].includes(h)) return { tab: h as Tab };
+  return { tab: 'today' };
+}
 
 function Shell() {
   const store = useStore();
-  const [tab, setTab] = useState<Tab>(() => {
-    const h = location.hash.slice(1);
-    if (h === 'pantry' || h === 'dishes') return 'kitchen';
-    return TABS.includes(h as Tab) ? (h as Tab) : 'today';
-  });
-  const [kitchen, setKitchen] = useState<'pantry' | 'dishes'>(() => (location.hash === '#dishes' ? 'dishes' : 'pantry'));
+  const [start] = useState(() => fromHash(location.hash.slice(1)));
+  const [tab, setTab] = useState<Tab>(start.tab);
+  const [food, setFood] = useState<FoodPage>(start.food ?? 'shopping');
+  const [home, setHome] = useState<HomePage>(start.home ?? 'upkeep');
   const [feedback, setFeedback] = useState(false);
-  const [addExpense, setAddExpense] = useState(false);
+  const [adding, setAdding] = useState(false);
   useEffect(() => {
-    history.replaceState(null, '', `#${tab}`);
-    window.scrollTo(0, 0);
-  }, [tab]);
+    history.replaceState(null, '', `#${tab === 'food' ? food : tab === 'home' ? home : tab}`);
+  }, [tab, food, home]);
+  useEffect(() => window.scrollTo(0, 0), [tab, food, home]);
+
+  const go = (to: Dest) => {
+    if (FOOD.includes(to as FoodPage)) {
+      setFood(to as FoodPage);
+      setTab('food');
+    } else if (HOME.includes(to as HomePage)) {
+      setHome(to as HomePage);
+      setTab('home');
+    } else setTab(to as Tab);
+  };
 
   const today = localDate();
   const needed = store.data.shopping.filter((s) => s.status === 'needed').length;
   const dueUpkeep = store.data.upkeep.filter((t) => upkeepStatus(t, today) === 'overdue').length;
   const tabs: { id: Tab; label: string; icon: typeof Settings; badge?: number; badgeCls?: string }[] = [
     { id: 'today', label: 'Today', icon: CalendarCheck },
-    { id: 'kitchen', label: 'Kitchen', icon: ChefHat },
-    { id: 'shopping', label: 'Shopping', icon: ShoppingCart, badge: needed },
-    { id: 'upkeep', label: 'Upkeep', icon: Wrench, badge: dueUpkeep, badgeCls: 'bg-rose-500' },
+    { id: 'food', label: 'Food', icon: ChefHat, badge: needed },
+    { id: 'home', label: 'Home', icon: House, badge: dueUpkeep, badgeCls: 'bg-rose-500' },
     { id: 'plans', label: 'Plans', icon: CalendarDays },
     { id: 'money', label: 'Money', icon: Wallet },
   ];
-  const gear = (
+  const actions = (
     <div className="flex gap-2">
-      <button onClick={() => setAddExpense(true)} aria-label="Add expense" className="rounded-xl bg-teal-700 p-2 text-white">
-        <IndianRupee size={18} />
-      </button>
       {store.backend.mode === 'cloud' && (
-        <button onClick={() => setFeedback(true)} aria-label="Send feedback" className="rounded-xl p-2 text-stone-500 ring-1 ring-stone-200 bg-white">
+        <button onClick={() => setFeedback(true)} aria-label="Send feedback" className="rounded-xl bg-white p-2 text-stone-500 ring-1 ring-stone-200">
           <MessageSquare size={18} />
         </button>
       )}
-      <button onClick={() => setTab('more')} aria-label="Home settings" className="rounded-xl p-2 text-stone-500 ring-1 ring-stone-200 bg-white">
+      <button onClick={() => setTab('more')} aria-label="Home settings" className="rounded-xl bg-white p-2 text-stone-500 ring-1 ring-stone-200">
         <Settings size={18} />
       </button>
     </div>
@@ -211,46 +229,66 @@ function Shell() {
           {store.error} (tap to dismiss)
         </button>
       )}
-      <main className="px-4 pb-28 pt-6 pt-safe">
-        {tab === 'today' && <TodayView onOpenShopping={() => setTab('shopping')} onGo={setTab} settingsButton={gear} />}
-        {tab === 'kitchen' && (
+      <main className="px-4 pb-32 pt-6 pt-safe">
+        {tab === 'today' && <TodayView onGo={go} actions={actions} />}
+        {tab === 'food' && (
           <>
-            <div className="mb-4">
-              <Segmented
-                value={kitchen}
-                onChange={setKitchen}
-                options={[
-                  { value: 'pantry', label: 'Pantry' },
-                  { value: 'dishes', label: 'Dishes' },
-                ]}
-              />
-            </div>
-            {kitchen === 'pantry' ? <PantryView /> : <DishesView />}
+            <SubTabs value={food} onChange={setFood} options={[{ value: 'shopping', label: needed ? `Shopping · ${needed}` : 'Shopping' }, { value: 'pantry', label: 'Pantry' }, { value: 'dishes', label: 'Dishes' }]} />
+            {food === 'shopping' && <ShoppingView />}
+            {food === 'pantry' && <PantryView />}
+            {food === 'dishes' && <DishesView />}
           </>
         )}
-        {tab === 'shopping' && <ShoppingView />}
-        {tab === 'upkeep' && <UpkeepView />}
+        {tab === 'home' && (
+          <>
+            <SubTabs value={home} onChange={setHome} options={[{ value: 'upkeep', label: 'Upkeep' }, { value: 'routine', label: 'Routine' }]} />
+            {home === 'upkeep' && <UpkeepView />}
+            {home === 'routine' && (
+              <div className="space-y-4">
+                <h1 className="text-2xl font-bold text-stone-900">Weekly routine</h1>
+                <WeeklyChores />
+              </div>
+            )}
+          </>
+        )}
         {tab === 'plans' && <PlansView />}
         {tab === 'money' && <MoneyView />}
         {tab === 'more' && <MoreView onBack={() => setTab('today')} />}
       </main>
       {feedback && <FeedbackSheet onClose={() => setFeedback(false)} />}
-      {addExpense && <ExpenseSheet expense={null} onClose={() => setAddExpense(false)} />}
+      {adding && <QuickAdd onClose={() => setAdding(false)} onGo={go} />}
+      {tab !== 'more' && (
+        <button
+          onClick={() => setAdding(true)}
+          aria-label="Add"
+          className="fixed bottom-[calc(4.75rem+env(safe-area-inset-bottom))] right-[max(1rem,calc(50%-15rem))] z-30 flex h-14 w-14 items-center justify-center rounded-full bg-teal-700 text-white shadow-lg shadow-teal-900/20 active:scale-95"
+        >
+          <Plus size={28} />
+        </button>
+      )}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 pb-safe backdrop-blur">
-        <div className="mx-auto grid max-w-lg grid-cols-6">
+        <div className="mx-auto grid max-w-lg grid-cols-5">
           {tabs.map((t) => {
             const Icon = t.icon;
             const on = tab === t.id;
             return (
-              <button key={t.id} onClick={() => setTab(t.id)} className={`relative flex flex-col items-center gap-0.5 pb-1 pt-2 text-[11px] font-medium ${on ? 'text-teal-700' : 'text-stone-500'}`}>
+              <button key={t.id} onClick={() => setTab(t.id)} className={`relative flex flex-col items-center gap-0.5 pb-1.5 pt-2 text-xs font-medium ${on ? 'text-teal-700' : 'text-stone-500'}`}>
                 <Icon size={22} strokeWidth={on ? 2.4 : 1.8} />
                 {t.label}
-                {!!t.badge && <span className={`absolute right-[14%] top-1 min-w-[18px] rounded-full ${t.badgeCls ?? 'bg-amber-500'} px-1 text-[10px] font-bold leading-[18px] text-white`}>{t.badge}</span>}
+                {!!t.badge && <span className={`absolute right-[22%] top-1 min-w-[18px] rounded-full ${t.badgeCls ?? 'bg-amber-500'} px-1 text-[10px] font-bold leading-[18px] text-white`}>{t.badge}</span>}
               </button>
             );
           })}
         </div>
       </nav>
+    </div>
+  );
+}
+
+function SubTabs<T extends string>({ value, onChange, options }: { value: T; onChange: (v: T) => void; options: { value: T; label: string }[] }) {
+  return (
+    <div className="sticky top-0 z-20 -mx-4 mb-4 bg-stone-50/95 px-4 pb-2 pt-1 backdrop-blur">
+      <Segmented value={value} onChange={onChange} options={options} />
     </div>
   );
 }

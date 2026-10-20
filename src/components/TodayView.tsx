@@ -1,25 +1,28 @@
-import { Check, ChefHat, Send, Clock, HelpCircle, Plus, RotateCcw, ShoppingCart, Sparkles, Undo2, UtensilsCrossed } from 'lucide-react';
+import { CalendarDays, Check, ChefHat, ChevronDown, Clock, HelpCircle, Plus, RotateCcw, Send, ShoppingCart, Sparkles, Undo2, UtensilsCrossed, Wallet } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { routineOn, withMark, type RoutineItem } from '../lib/calendar';
-import { addDays, friendlyDate, localDate, parseLocalDate, WEEKDAYS } from '../lib/dates';
-import { activeTrip } from '../lib/plans';
+import { addDays, localDate, parseLocalDate, WEEKDAYS } from '../lib/dates';
+import { billsDue } from '../lib/money';
+import { activeTrip, countdown, upcomingPlans } from '../lib/plans';
 import { pickQuestions, type Question } from '../lib/questions';
 import { suggest, type Suggestion } from '../lib/suggest';
+import { mealPlanOfDay } from '../lib/today';
 import { useStore } from '../store/store';
 import type { MealLog, Slot } from '../types';
-import { AwayCard, ComingUpCard, type Go } from './ComingUp';
+import { AwayCard, TodoCard, type Go } from './ComingUp';
 import { MealPickerSheet } from './MealPickerSheet';
 import { useToast } from './toast';
-import { LevelPicker, Segmented } from './ui';
+import { LevelPicker } from './ui';
 
 const SLOT_LABEL: Record<Slot, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
 
-export function TodayView({ onOpenShopping, onGo, settingsButton }: { onOpenShopping: () => void; onGo: Go; settingsButton?: React.ReactNode }) {
+export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNode }) {
   const store = useStore();
   const { data } = store;
   const toast = useToast();
   const [day, setDay] = useState<'today' | 'tomorrow'>('today');
   const [picker, setPicker] = useState<Slot | null>(null);
+  const [others, setOthers] = useState(false);
+  const [opened, setOpened] = useState<Slot | null>(null);
 
   const today = localDate();
   const date = day === 'today' ? today : addDays(today, 1);
@@ -51,23 +54,18 @@ export function TodayView({ onOpenShopping, onGo, settingsButton }: { onOpenShop
     return pickQuestions(data.items, relevant, now);
   }, [data.items, bySlot, logged, settings.slots, now]);
 
-  const recent = useMemo(
-    () =>
-      [...data.meals]
-        .filter((m) => m.date < date && m.date >= addDays(date, -3))
-        .sort((a, b) => (a.date === b.date ? slotOrder(b.slot) - slotOrder(a.slot) : b.date.localeCompare(a.date))),
-    [data.meals, date],
-  );
-
-  const dayTasks = useMemo(() => routineOn(settings, data.upkeep, date), [settings, data.upkeep, date]);
-  const toggleTask = (item: RoutineItem) =>
-    store.updateHousehold({ settings: { weekState: withMark(settings.weekState, item.key, item.origDate, { done: !item.done }, today) } });
-
+  const minutes = day === 'today' ? now.getHours() * 60 + now.getMinutes() : 0;
+  const plan = mealPlanOfDay(settings.slots, logged, minutes);
   const away = activeTrip(data.plans, date);
+
   const neededCount = data.shopping.filter((s) => s.status === 'needed').length;
+  const billCount = billsDue(data.bills, today).length;
+  const nextPlan = upcomingPlans(data.plans, today).find((p) => p.startDate > today);
 
   const cook = (slot: Slot, s: Suggestion) => {
     const id = store.logMeal({ date, slot, kind: 'cooked', dish: s.dish });
+    setOthers(false);
+    setOpened(null);
     toast(`${s.dish.name} logged. Pantry updated.`, { label: 'Undo', run: () => store.undoMeal(id) });
   };
 
@@ -78,132 +76,175 @@ export function TodayView({ onOpenShopping, onGo, settingsButton }: { onOpenShop
 
   const hour = now.getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
+  const preview = day === 'tomorrow';
+  const loggedSlots = settings.slots.filter((s) => logged[s]);
+  const cooked = settings.slots.filter((s) => logged[s]?.kind === 'cooked');
+
+  const slotBlock = (slot: Slot, showOthers: boolean, toggleOthers: () => void) => {
+    const list = bySlot[slot] ?? [];
+    if (!list.length)
+      return (
+        <div className="rounded-2xl border border-dashed border-stone-300 bg-white p-4 text-sm text-stone-500">
+          No {SLOT_LABEL[slot].toLowerCase()} dishes in your rotation yet. Add some under Food, Dishes.
+          {!preview && (
+            <button onClick={() => setPicker(slot)} className="mt-2 block font-medium text-teal-700">
+              Log what you ate
+            </button>
+          )}
+        </div>
+      );
+    return (
+      <div className="space-y-1.5">
+        <SuggestionCard s={list[0]} top preview={preview} onCook={() => cook(slot, list[0])} onAddMissing={addMissing} />
+        {showOthers ? (
+          <>
+            {list.slice(1).map((s) => (
+              <SuggestionCard key={s.dish.id} s={s} preview={preview} onCook={() => cook(slot, s)} onAddMissing={addMissing} />
+            ))}
+            {!preview && (
+              <button onClick={() => setPicker(slot)} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-stone-300 py-2 text-xs font-medium text-stone-600">
+                <UtensilsCrossed size={16} /> Something else, ordered in, or leftovers
+              </button>
+            )}
+          </>
+        ) : (
+          <button onClick={toggleOthers} className="w-full py-1 text-center text-sm font-medium text-teal-700">
+            Other ideas{list.length > 1 ? ` (${list.length - 1})` : ''}
+          </button>
+        )}
+      </div>
+    );
+  };
 
   return (
-    <div className="space-y-4">
-      <header className="space-y-3">
+    <div className="space-y-5">
+      <header>
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-sm text-stone-500">{greeting}</p>
-            <h1 className="text-2xl font-bold text-stone-900">
-              {day === 'today' ? "Today's meals" : "Tomorrow's meals"}
-            </h1>
-            <p className="text-sm text-stone-500">{WEEKDAYS[parseLocalDate(date).getDay()]}{settings.vegOnlyDays.includes(parseLocalDate(date).getDay()) ? ' · veg only' : ''}</p>
+            <h1 className="text-2xl font-bold text-stone-900">{longDate(today)}</h1>
           </div>
-          <div className="shrink-0">{settingsButton}</div>
+          <div className="shrink-0">{actions}</div>
         </div>
-        <Segmented
-          value={day}
-          onChange={setDay}
-          options={[
-            { value: 'today', label: 'Today' },
-            { value: 'tomorrow', label: 'Tomorrow' },
-          ]}
-        />
+        {(billCount > 0 || neededCount > 0 || nextPlan) && (
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            {billCount > 0 && (
+              <Chip onClick={() => onGo('money')} cls="bg-rose-50 text-rose-800 ring-rose-200">
+                <Wallet size={13} /> {billCount} bill{billCount > 1 ? 's' : ''} due
+              </Chip>
+            )}
+            {neededCount > 0 && (
+              <Chip onClick={() => onGo('shopping')} cls="bg-amber-50 text-amber-900 ring-amber-200">
+                <ShoppingCart size={13} /> {neededCount} to buy
+              </Chip>
+            )}
+            {nextPlan && (
+              <Chip onClick={() => onGo('plans')} cls="bg-sky-50 text-sky-900 ring-sky-200">
+                <CalendarDays size={13} /> {nextPlan.title} · {countdown(nextPlan, today).toLowerCase()}
+              </Chip>
+            )}
+          </div>
+        )}
       </header>
 
       {away && <AwayCard date={date} />}
 
-      {!away && day === 'today' && questions.length > 0 && <QuestionsCard questions={questions} />}
-
-      {!away && settings.slots.map((slot) => (
-        <section key={slot}>
-          <h2 className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-stone-500">{SLOT_LABEL[slot]}</h2>
-          {logged[slot] ? (
-            <LoggedCard meal={logged[slot]!} onUndo={() => store.undoMeal(logged[slot]!.id)} />
-          ) : bySlot[slot]?.length ? (
-            <div className="space-y-1.5">
-              <SuggestionCard s={bySlot[slot][0]} top preview={day === 'tomorrow'} onCook={() => cook(slot, bySlot[slot][0])} onAddMissing={addMissing} />
-              {bySlot[slot].slice(1).map((s) => (
-                <SuggestionCard key={s.dish.id} s={s} preview={day === 'tomorrow'} onCook={() => cook(slot, s)} onAddMissing={addMissing} />
+      {!away && (
+        <section>
+          <div className="mb-2 flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">{plan.focus ? (preview ? `Tomorrow · ${SLOT_LABEL[plan.focus]}` : SLOT_LABEL[plan.focus]) : 'Meals'}</h2>
+            <div className="flex rounded-lg bg-stone-100 p-0.5 text-xs font-medium">
+              {(['today', 'tomorrow'] as const).map((d) => (
+                <button
+                  key={d}
+                  onClick={() => {
+                    setDay(d);
+                    setOthers(false);
+                    setOpened(null);
+                  }}
+                  className={`rounded-md px-2.5 py-1 ${day === d ? 'bg-white text-stone-900 shadow-sm' : 'text-stone-500'}`}
+                >
+                  {d === 'today' ? 'Today' : 'Tomorrow'}
+                </button>
               ))}
-              {day === 'today' && (
-                <button onClick={() => setPicker(slot)} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-stone-300 py-2 text-xs font-medium text-stone-600 hover:bg-white">
-                  <UtensilsCrossed size={16} /> Something else, ordered in, or leftovers
-                </button>
-              )}
             </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-stone-300 bg-white p-4 text-sm text-stone-500">
-              No {SLOT_LABEL[slot].toLowerCase()} dishes in your rotation yet. Add some under Kitchen, Dishes.
-              {day === 'today' && (
-                <button onClick={() => setPicker(slot)} className="mt-2 block font-medium text-teal-700">
-                  Log what you ate
-                </button>
-              )}
+          </div>
+
+          {loggedSlots.length > 0 && (
+            <div className="mb-2 space-y-1.5">
+              {loggedSlots.map((s) => (
+                <LoggedRow key={s} slot={s} meal={logged[s]!} onUndo={() => store.undoMeal(logged[s]!.id)} />
+              ))}
             </div>
           )}
-        </section>
-      ))}
 
-      {settings.cookAtHome && settings.slots.some((s) => logged[s]?.kind === 'cooked') && (
-        <a
-          href={`https://wa.me/?text=${encodeURIComponent(
-            `Menu for ${day === 'today' ? 'today' : 'tomorrow'}\n` +
-              settings.slots
-                .filter((s) => logged[s]?.kind === 'cooked')
-                .map((s) => `${SLOT_LABEL[s]}: ${logged[s]!.label} (for ${logged[s]!.servings})`)
-                .join('\n'),
-          )}`}
-          target="_blank"
-          rel="noreferrer"
-          className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-3 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"
-        >
-          <Send size={16} /> Send the menu to the cook
-        </a>
-      )}
+          {plan.focus ? (
+            slotBlock(plan.focus, others, () => setOthers(true))
+          ) : (
+            !plan.missed.length && <p className="rounded-2xl bg-white p-4 text-sm text-stone-600 ring-1 ring-stone-200">All meals sorted for today. Tap Tomorrow to plan ahead.</p>
+          )}
 
-      {!away && dayTasks.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">{day === 'today' ? "Today's tasks" : "Tomorrow's tasks"}</h2>
-          <div className="divide-y divide-stone-100 overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
-            {dayTasks.map((t) => (
-              <button key={`${t.key}@${t.origDate}`} onClick={() => toggleTask(t)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
-                <span className={`flex h-6 w-6 items-center justify-center rounded-full border ${t.done ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-stone-300'}`}>
-                  {t.done && <Check size={14} />}
-                </span>
-                <span className={`flex-1 text-sm ${t.done ? 'text-stone-400 line-through' : 'text-stone-900'}`}>{t.label}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
+          {(plan.later.length > 0 || plan.missed.length > 0) && (
+            <div className="mt-2 divide-y divide-stone-100 overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
+              {plan.later.map((slot) =>
+                opened === slot ? (
+                  <div key={slot} className="p-2">
+                    <p className="px-2 pb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500">{SLOT_LABEL[slot]}</p>
+                    {slotBlock(slot, true, () => {})}
+                  </div>
+                ) : (
+                  <button key={slot} onClick={() => setOpened(slot)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+                    <span className="w-20 text-xs font-semibold uppercase tracking-wide text-stone-500">{SLOT_LABEL[slot]}</span>
+                    <span className="min-w-0 flex-1 truncate text-sm text-stone-800">{bySlot[slot]?.[0]?.dish.name ?? 'No ideas yet'}</span>
+                    <ChevronDown size={16} className="text-stone-400" />
+                  </button>
+                ),
+              )}
+              {plan.missed.map((slot) => (
+                <button key={slot} onClick={() => setPicker(slot)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+                  <span className="w-20 text-xs font-semibold uppercase tracking-wide text-stone-400">{SLOT_LABEL[slot]}</span>
+                  <span className="flex-1 text-sm text-stone-400">Not logged</span>
+                  <span className="text-sm font-medium text-teal-700">Log it</span>
+                </button>
+              ))}
+            </div>
+          )}
 
-      <ComingUpCard today={today} onGo={onGo} />
-
-      {neededCount > 0 && (
-        <button onClick={onOpenShopping} className="flex w-full items-center gap-3 rounded-2xl bg-amber-50 p-4 text-left ring-1 ring-amber-200">
-          <ShoppingCart className="text-amber-600" size={22} />
-          <div className="flex-1">
-            <p className="font-semibold text-amber-900">{neededCount} thing{neededCount > 1 ? 's' : ''} to buy</p>
-            <p className="text-sm text-amber-800">Tap to see the shopping list</p>
-          </div>
-        </button>
-      )}
-
-      {recent.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Recently eaten</h2>
-          <div className="divide-y divide-stone-100 rounded-2xl bg-white ring-1 ring-stone-200">
-            {recent.map((m) => (
-              <div key={m.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                <span className="text-stone-800">{m.label || kindLabel(m)}</span>
-                <span className="text-stone-500">
-                  {friendlyDate(m.date, date)} · {SLOT_LABEL[m.slot].toLowerCase()}
-                </span>
-              </div>
-            ))}
-          </div>
+          {settings.cookAtHome && cooked.length > 0 && (
+            <a
+              href={`https://wa.me/?text=${encodeURIComponent(
+                `Menu for ${preview ? 'tomorrow' : 'today'}\n` + cooked.map((s) => `${SLOT_LABEL[s]}: ${logged[s]!.label} (for ${logged[s]!.servings})`).join('\n'),
+              )}`}
+              target="_blank"
+              rel="noreferrer"
+              className="mt-2 flex items-center justify-center gap-1.5 py-1 text-sm font-medium text-emerald-700"
+            >
+              <Send size={14} /> Send the menu to the cook
+            </a>
+          )}
         </section>
       )}
+
+      {!away && !preview && questions.length > 0 && <QuestionsCard questions={questions} />}
+
+      <TodoCard date={date} onGo={onGo} />
 
       {picker && <MealPickerSheet slot={picker} date={date} onClose={() => setPicker(null)} />}
     </div>
   );
 }
 
-function slotOrder(s: Slot) {
-  return s === 'breakfast' ? 0 : s === 'lunch' ? 1 : 2;
+function longDate(date: string) {
+  const d = parseLocalDate(date);
+  return `${WEEKDAYS[d.getDay()]}, ${d.getDate()} ${d.toLocaleString('en-IN', { month: 'short' })}`;
+}
+
+function Chip({ onClick, cls, children }: { onClick: () => void; cls: string; children: React.ReactNode }) {
+  return (
+    <button onClick={onClick} className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${cls}`}>
+      {children}
+    </button>
+  );
 }
 
 function kindLabel(m: MealLog) {
@@ -271,20 +312,17 @@ function SuggestionCard({ s, top, preview, onCook, onAddMissing }: { s: Suggesti
   );
 }
 
-function LoggedCard({ meal, onUndo }: { meal: MealLog; onUndo: () => void }) {
+function LoggedRow({ slot, meal, onUndo }: { slot: Slot; meal: MealLog; onUndo: () => void }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 px-4 py-3 ring-1 ring-emerald-200">
-      <span className="flex h-8 w-8 items-center justify-center rounded-full bg-emerald-600 text-white">
-        <Check size={18} />
+    <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 px-3 py-2 ring-1 ring-emerald-200">
+      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white">
+        <Check size={14} />
       </span>
-      <div className="flex-1">
-        <p className="font-medium text-emerald-950">{meal.label || kindLabel(meal)}</p>
-        <p className="text-xs text-emerald-800">
-          {meal.kind === 'cooked' ? `Cooked for ${meal.servings}` : kindLabel(meal)}
-        </p>
-      </div>
-      <button onClick={onUndo} className="flex items-center gap-1 rounded-xl px-2 py-1.5 text-sm text-emerald-800 hover:bg-emerald-100">
-        <Undo2 size={15} /> Undo
+      <p className="min-w-0 flex-1 truncate text-sm text-emerald-950">
+        <span className="text-emerald-800">{SLOT_LABEL[slot]}:</span> {meal.label || kindLabel(meal)}
+      </p>
+      <button onClick={onUndo} aria-label={`Undo ${SLOT_LABEL[slot].toLowerCase()}`} className="rounded-lg p-1.5 text-emerald-800">
+        <Undo2 size={15} />
       </button>
     </div>
   );
@@ -292,36 +330,32 @@ function LoggedCard({ meal, onUndo }: { meal: MealLog; onUndo: () => void }) {
 
 function QuestionsCard({ questions }: { questions: Question[] }) {
   const store = useStore();
+  const q = questions[0];
   return (
     <section className="rounded-3xl bg-violet-50 p-4 ring-1 ring-violet-200">
-      <h2 className="mb-3 flex items-center gap-2 font-semibold text-violet-950">
-        <HelpCircle size={18} className="text-violet-600" /> Quick check
+      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-violet-950">
+        <HelpCircle size={16} className="text-violet-600" /> Quick check
+        {questions.length > 1 && <span className="ml-auto text-xs font-normal text-violet-700">{questions.length} left</span>}
       </h2>
-      <div className="space-y-4">
-        {questions.map((q) => (
-          <div key={q.item.id}>
-            <p className="mb-2 text-sm text-violet-950">{q.text}</p>
-            {q.kind === 'fresh' ? (
-              <div className="grid grid-cols-3 gap-1.5 text-sm">
-                <button onClick={() => store.setItemLevel(q.item.id, Math.max(0.2, q.item.level), 'correction')} className="rounded-xl border border-violet-200 bg-white py-2 font-medium text-stone-700">
-                  Still good
-                </button>
-                <button onClick={() => store.setItemLevel(q.item.id, 0, 'correction')} className="rounded-xl border border-violet-200 bg-white py-2 font-medium text-stone-700">
-                  Finished
-                </button>
-                <button onClick={() => store.setItemLevel(q.item.id, 0, 'spoiled')} className="rounded-xl border border-violet-200 bg-white py-2 font-medium text-stone-700">
-                  Threw away
-                </button>
-              </div>
-            ) : (
-              <LevelPicker value={null} onPick={(v) => store.setItemLevel(q.item.id, v, 'correction')} size="sm" />
-            )}
-            <button onClick={() => store.skipQuestion(q.item.id)} className="mt-1.5 flex items-center gap-1 text-xs text-violet-700">
-              <RotateCcw size={12} /> Ask me later
-            </button>
-          </div>
-        ))}
-      </div>
+      <p className="mb-2 text-sm text-violet-950">{q.text}</p>
+      {q.kind === 'fresh' ? (
+        <div className="grid grid-cols-3 gap-1.5 text-sm">
+          <button onClick={() => store.setItemLevel(q.item.id, Math.max(0.2, q.item.level), 'correction')} className="rounded-xl border border-violet-200 bg-white py-2 font-medium text-stone-700">
+            Still good
+          </button>
+          <button onClick={() => store.setItemLevel(q.item.id, 0, 'correction')} className="rounded-xl border border-violet-200 bg-white py-2 font-medium text-stone-700">
+            Finished
+          </button>
+          <button onClick={() => store.setItemLevel(q.item.id, 0, 'spoiled')} className="rounded-xl border border-violet-200 bg-white py-2 font-medium text-stone-700">
+            Threw away
+          </button>
+        </div>
+      ) : (
+        <LevelPicker value={null} onPick={(v) => store.setItemLevel(q.item.id, v, 'correction')} size="sm" />
+      )}
+      <button onClick={() => store.skipQuestion(q.item.id)} className="mt-1.5 flex items-center gap-1 text-xs text-violet-700">
+        <RotateCcw size={12} /> Ask me later
+      </button>
     </section>
   );
 }

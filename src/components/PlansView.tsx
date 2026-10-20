@@ -5,7 +5,7 @@ import { uid } from '../lib/id';
 import { buildChecklist, countdown, dateRange, isOngoing, newsUrl, pastPlans, upcomingPlans, weatherUrl } from '../lib/plans';
 import { useStore } from '../store/store';
 import type { Plan, PlanTask } from '../types';
-import { MonthCalendar, WeeklyChores } from './CalendarSection';
+import { MonthCalendar } from './CalendarSection';
 import { ConfirmButton, Field, inputCls, PrimaryButton, Segmented, Sheet, Toggle } from './ui';
 
 export function PlansView() {
@@ -27,15 +27,11 @@ export function PlansView() {
         </button>
       </header>
 
-      <WeeklyChores />
-      <MonthCalendar onOpenPlan={(id) => setOpenId(id)} />
-
       {!upcoming.length && (
-        <div className="rounded-2xl bg-white p-6 text-center ring-1 ring-stone-200">
-          <Plane className="mx-auto mb-2 text-teal-700" />
-          <p className="font-semibold text-stone-800">No plans coming up</p>
-          <p className="mt-1 text-sm text-stone-500">Add a trip and you'll get a checklist with booking, passport, packing and home reminders, timed to the dates.</p>
-        </div>
+        <button onClick={() => setEditing('new')} className="flex w-full items-center gap-3 rounded-2xl border border-dashed border-stone-300 p-4 text-left text-sm text-stone-600">
+          <Plane size={18} className="shrink-0 text-teal-700" />
+          No plans coming up. Add a trip and get a checklist for booking, packing and the house, timed to the dates.
+        </button>
       )}
 
       <div className="space-y-3">
@@ -43,6 +39,8 @@ export function PlansView() {
           <PlanCard key={p.id} plan={p} today={today} onOpen={() => setOpenId(p.id)} />
         ))}
       </div>
+
+      <MonthCalendar onOpenPlan={(id) => setOpenId(id)} />
 
       {past.length > 0 && (
         <section>
@@ -192,7 +190,7 @@ function PlanDetail({ plan, onClose, onEdit }: { plan: Plan; onClose: () => void
   );
 }
 
-function PlanSheet({ plan, onClose, onCreated }: { plan: Plan | null; onClose: () => void; onCreated: (id: string) => void }) {
+export function PlanSheet({ plan, onClose, onCreated }: { plan: Plan | null; onClose: () => void; onCreated: (id: string) => void }) {
   const store = useStore();
   const today = localDate();
   const [draft, setDraft] = useState<Plan>(
