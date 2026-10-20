@@ -16,5 +16,7 @@
   "vars": {
     "SUPABASE_URL": "https://akrkcyeivtpnqlowzsvb.supabase.co",
     "SUPABASE_KEY": "sb_publishable_URv1xNli2xpo_jaZEfW7fA_HvhlU_Yx"
-  }
+  },
+  // Keep variables added in the dashboard when deploying.
+  "keep_vars": true
 }

@@ -25,17 +25,19 @@ async function rpc(env: Env, fn: string, args: Record<string, unknown>) {
 }
 
 async function runFeedback(req: Request, env: Env): Promise<Response> {
-  if (!env.CLAUDE_FIRE_URL || !env.CLAUDE_FIRE_TOKEN) return json({ ok: false, reason: 'not_configured' });
+  const missing = (['CLAUDE_FIRE_URL', 'CLAUDE_FIRE_TOKEN'] as const).filter((k) => !env[k]);
+  const { CLAUDE_FIRE_URL: fireUrl, CLAUDE_FIRE_TOKEN: fireToken } = env;
+  if (!fireUrl || !fireToken) return json({ ok: false, reason: 'not_configured', missing });
   const { token, password } = (await req.json().catch(() => ({}))) as { token?: string; password?: string };
   if (!token || !password) return json({ ok: false, reason: 'wrong_password' });
 
   const check = await rpc(env, 'hm_feedback_request_run', { p_token: token, p_password: password });
   if (!check.ok) return json(check);
 
-  const fire = await fetch(env.CLAUDE_FIRE_URL, {
+  const fire = await fetch(fireUrl.trim(), {
     method: 'POST',
     headers: {
-      authorization: `Bearer ${env.CLAUDE_FIRE_TOKEN}`,
+      authorization: `Bearer ${fireToken.trim()}`,
       'anthropic-beta': 'experimental-cc-routine-2026-04-01',
       'anthropic-version': '2023-06-01',
       'content-type': 'application/json',

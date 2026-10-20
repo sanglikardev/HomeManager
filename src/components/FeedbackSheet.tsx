@@ -126,13 +126,14 @@ function StartClaude({ onStarted }: { onStarted: () => void }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ token: getToken(), password }),
       });
-      const out = (await res.json().catch(() => ({}))) as { ok?: boolean; reason?: string; open?: number };
+      const out = (await res.json().catch(() => ({}))) as { ok?: boolean; reason?: string; open?: number; missing?: string[] };
       if (out.ok) {
         setPassword('');
         toast(`Claude started on ${out.open} item${out.open === 1 ? '' : 's'}`);
         onStarted();
       } else {
-        setMessage(RUN_ERRORS[out.reason ?? ''] ?? 'Something went wrong. Try again later.');
+        const text = RUN_ERRORS[out.reason ?? ''] ?? 'Something went wrong. Try again later.';
+        setMessage(out.missing?.length ? `${text} Missing: ${out.missing.join(', ')}.` : text);
       }
     } catch {
       setMessage('Could not reach the server.');
