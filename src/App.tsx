@@ -1,7 +1,8 @@
-import { CalendarCheck, CalendarDays, ChefHat, Settings, ShoppingCart, Users, Wrench } from 'lucide-react';
+import { CalendarCheck, CalendarDays, ChefHat, MessageSquare, Settings, ShoppingCart, Users, Wrench } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DishesView } from './components/DishesView';
 import { LoginScreen } from './components/LoginScreen';
+import { FeedbackSheet } from './components/FeedbackSheet';
 import { MoreView } from './components/MoreView';
 import { PantryView } from './components/PantryView';
 import { PlansView } from './components/PlansView';
@@ -167,6 +168,7 @@ function Shell() {
     return TABS.includes(h as Tab) ? (h as Tab) : 'today';
   });
   const [kitchen, setKitchen] = useState<'pantry' | 'dishes'>(() => (location.hash === '#dishes' ? 'dishes' : 'pantry'));
+  const [feedback, setFeedback] = useState(false);
   useEffect(() => {
     history.replaceState(null, '', `#${tab}`);
     window.scrollTo(0, 0);
@@ -183,9 +185,16 @@ function Shell() {
     { id: 'plans', label: 'Plans', icon: CalendarDays },
   ];
   const gear = (
-    <button onClick={() => setTab('more')} aria-label="Home settings" className="rounded-xl p-2 text-stone-500 ring-1 ring-stone-200 bg-white">
-      <Settings size={18} />
-    </button>
+    <div className="flex gap-2">
+      {store.backend.mode === 'cloud' && (
+        <button onClick={() => setFeedback(true)} aria-label="Send feedback" className="rounded-xl p-2 text-stone-500 ring-1 ring-stone-200 bg-white">
+          <MessageSquare size={18} />
+        </button>
+      )}
+      <button onClick={() => setTab('more')} aria-label="Home settings" className="rounded-xl p-2 text-stone-500 ring-1 ring-stone-200 bg-white">
+        <Settings size={18} />
+      </button>
+    </div>
   );
 
   return (
@@ -217,6 +226,7 @@ function Shell() {
         {tab === 'plans' && <PlansView />}
         {tab === 'more' && <MoreView onBack={() => setTab('today')} />}
       </main>
+      {feedback && <FeedbackSheet onClose={() => setFeedback(false)} />}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 pb-safe backdrop-blur">
         <div className="mx-auto grid max-w-lg grid-cols-5">
           {tabs.map((t) => {

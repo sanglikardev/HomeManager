@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { friendlyDate, localDate } from '../lib/dates';
 import { addFeedback, getToken, listFeedback, type FeedbackItem } from '../store/backend';
 import { useToast } from './toast';
-import { inputCls, PrimaryButton, Segmented, Sheet } from './ui';
+import { inputCls, PrimaryButton, Sheet } from './ui';
 
 const STATUS: Record<FeedbackItem['status'], { label: string; cls: string }> = {
   new: { label: 'Waiting', cls: 'bg-stone-100 text-stone-600' },
@@ -12,10 +12,9 @@ const STATUS: Record<FeedbackItem['status'], { label: string; cls: string }> = {
   declined: { label: 'Not done', cls: 'bg-rose-100 text-rose-700' },
 };
 
-// Bugs and ideas for the app itself. Claude reads these and replies in claudeNote.
+// Feedback (bugs and ideas) for the app itself. Claude reads these and replies in claudeNote.
 export function FeedbackSheet({ onClose }: { onClose: () => void }) {
   const toast = useToast();
-  const [kind, setKind] = useState<'bug' | 'idea'>('bug');
   const [body, setBody] = useState('');
   const [busy, setBusy] = useState(false);
   const [state, setState] = useState<{ enabled: boolean; items: FeedbackItem[] } | null>(null);
@@ -32,9 +31,9 @@ export function FeedbackSheet({ onClose }: { onClose: () => void }) {
   const send = async () => {
     setBusy(true);
     try {
-      await addFeedback(kind, body.trim());
+      await addFeedback('idea', body.trim());
       setBody('');
-      toast(kind === 'bug' ? 'Bug sent. Thanks!' : 'Idea sent. Thanks!');
+      toast('Feedback sent. Thanks!');
       await refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -44,28 +43,18 @@ export function FeedbackSheet({ onClose }: { onClose: () => void }) {
   };
 
   return (
-    <Sheet title="Bugs and ideas" onClose={onClose}>
+    <Sheet title="Feedback" onClose={onClose}>
       {error && <p className="mb-3 text-sm text-rose-600">{error}</p>}
       {state && !state.enabled ? (
         <p className="text-sm text-stone-600">Feedback is only open for the app owner's home.</p>
       ) : (
         <>
-          <div className="mb-3">
-            <Segmented
-              value={kind}
-              onChange={setKind}
-              options={[
-                { value: 'bug', label: 'Something is wrong' },
-                { value: 'idea', label: 'Idea or request' },
-              ]}
-            />
-          </div>
           <textarea
             id="feedback-body"
             className={inputCls}
             rows={4}
             maxLength={4000}
-            placeholder={kind === 'bug' ? 'What happened, and what did you expect? Which screen?' : 'What would you like the app to do?'}
+            placeholder="Something wrong, or an idea? Say which screen and what you expected."
             value={body}
             onChange={(e) => setBody(e.target.value)}
           />
@@ -84,7 +73,7 @@ export function FeedbackSheet({ onClose }: { onClose: () => void }) {
                     <div className="mb-1 flex items-center gap-2 text-xs">
                       <span className={`rounded-full px-2 py-0.5 font-medium ${STATUS[f.status].cls}`}>{STATUS[f.status].label}</span>
                       <span className="text-stone-400">
-                        {f.kind === 'bug' ? 'Bug' : 'Idea'} · {friendlyDate(localDate(new Date(f.createdAt)))}
+                        {friendlyDate(localDate(new Date(f.createdAt)))}
                       </span>
                     </div>
                     <p className="whitespace-pre-wrap text-sm text-stone-800">{f.body}</p>

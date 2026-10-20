@@ -65,7 +65,7 @@ export function MoreView({ onBack }: { onBack?: () => void }) {
         <button onClick={() => setFeedback(true)} className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left ring-1 ring-stone-200">
           <MessageSquare size={18} className="text-teal-700" />
           <div className="flex-1">
-            <p className="font-medium text-stone-800">Report a bug or suggest an idea</p>
+            <p className="font-medium text-stone-800">Feedback</p>
             <p className="text-xs text-stone-500">Claude reads these and replies here</p>
           </div>
         </button>
