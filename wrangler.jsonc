@@ -1,11 +1,20 @@
-// Cloudflare Worker serving the built app as static assets (no server code).
+// Cloudflare Worker: serves the built app as static assets, and runs worker/index.ts
+// only for /api/* (the feedback "Start Claude" button).
 // Workers Builds runs `npm run build`, then `npx wrangler deploy`.
+// Secrets are set in the Cloudflare dashboard, never here: CLAUDE_FIRE_URL, CLAUDE_FIRE_TOKEN.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "homemanager",
   "compatibility_date": "2026-10-20",
+  "main": "worker/index.ts",
   "assets": {
     "directory": "./dist",
-    "not_found_handling": "single-page-application"
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application",
+    "run_worker_first": ["/api/*"]
+  },
+  "vars": {
+    "SUPABASE_URL": "https://akrkcyeivtpnqlowzsvb.supabase.co",
+    "SUPABASE_KEY": "sb_publishable_URv1xNli2xpo_jaZEfW7fA_HvhlU_Yx"
   }
 }

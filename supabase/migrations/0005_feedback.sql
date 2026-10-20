@@ -114,3 +114,60 @@ $$;
 grant execute on function hm_feedback_list(text) to anon, authenticated;
 grant execute on function hm_feedback_add(text, text, text) to anon, authenticated;
 grant execute on function hm_feedback_request_run(text) to anon, authenticated;
+
+-- ---- 0006: master password for starting a Claude run ----
+-- The password hash is set separately in the SQL editor, never committed:
+--   insert into hm_config (key, value) values ('feedback_password_hash', extensions.crypt('<password>', extensions.gen_salt('bf')))
+--   on conflict (key) do update set value = excluded.value;
+
+create table if not exists hm_feedback_failures (
+  at timestamptz not null default now()
+);
+alter table hm_feedback_failures enable row level security;
+
+-- Starting a run needs the owner home's session AND the master password.
+-- 5 wrong tries an hour locks it.
+create or replace function hm_feedback_request_run(p_token text, p_password text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public, extensions
+as $$
+declare
+  v_last timestamptz;
+  v_open integer;
+  v_hash text;
+begin
+  if not hm_feedback_access(p_token) then
+    return jsonb_build_object('ok', false, 'reason', 'not_allowed');
+  end if;
+  if (select count(*) from hm_feedback_failures where at > now() - interval '1 hour') >= 5 then
+    return jsonb_build_object('ok', false, 'reason', 'locked');
+  end if;
+  select value into v_hash from hm_config where key = 'feedback_password_hash';
+  if v_hash is null or v_hash = '' or crypt(coalesce(p_password, ''), v_hash) <> v_hash then
+    insert into hm_feedback_failures default values;
+    return jsonb_build_object('ok', false, 'reason', 'wrong_password');
+  end if;
+  select count(*) into v_open from hm_feedback where household_id = hm_household_for(p_token) and status = 'new';
+  if v_open = 0 then
+    return jsonb_build_object('ok', false, 'reason', 'nothing_new');
+  end if;
+  select nullif(value, '')::timestamptz into v_last from hm_config where key = 'feedback_last_run';
+  if v_last is not null and v_last > now() - interval '10 minutes' then
+    return jsonb_build_object('ok', false, 'reason', 'too_soon');
+  end if;
+  insert into hm_config (key, value) values ('feedback_last_run', now()::text)
+  on conflict (key) do update set value = excluded.value;
+  return jsonb_build_object('ok', true, 'open', v_open);
+end;
+$$;
+grant execute on function hm_feedback_request_run(text, text) to anon, authenticated;
+
+-- The one-argument version is retired: a run always needs the password.
+create or replace function hm_feedback_request_run(p_token text)
+returns jsonb
+language sql
+security definer
+set search_path = public
+as $$ select jsonb_build_object('ok', false, 'reason', 'password_required'); $$;

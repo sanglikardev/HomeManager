@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { friendlyDate, localDate } from '../lib/dates';
-import { addFeedback, listFeedback, type FeedbackItem } from '../store/backend';
+import { addFeedback, getToken, listFeedback, type FeedbackItem } from '../store/backend';
 import { useToast } from './toast';
 import { inputCls, PrimaryButton, Segmented, Sheet } from './ui';
 
@@ -73,6 +73,8 @@ export function FeedbackSheet({ onClose }: { onClose: () => void }) {
             {busy ? 'Sending…' : 'Send'}
           </PrimaryButton>
 
+          {state?.items.some((f) => f.status === 'new') && <StartClaude onStarted={refresh} />}
+
           {!!state?.items.length && (
             <section className="mt-6">
               <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-500">Sent so far</h3>
@@ -95,5 +97,69 @@ export function FeedbackSheet({ onClose }: { onClose: () => void }) {
         </>
       )}
     </Sheet>
+  );
+}
+
+const RUN_ERRORS: Record<string, string> = {
+  wrong_password: 'That password is not right.',
+  locked: 'Too many wrong tries. Try again in an hour.',
+  too_soon: 'Claude was started a few minutes ago. Give it a little time.',
+  nothing_new: 'Nothing new to work on.',
+  not_allowed: 'Only the app owner can start Claude.',
+  not_configured: 'Claude is not connected yet. The Cloudflare setup step is still pending.',
+  fire_failed: 'Claude could not be started. Try again later.',
+};
+
+// Starts Claude on the waiting items. Needs the master password.
+function StartClaude({ onStarted }: { onStarted: () => void }) {
+  const toast = useToast();
+  const [password, setPassword] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState<string | null>(null);
+
+  const start = async () => {
+    setBusy(true);
+    setMessage(null);
+    try {
+      const res = await fetch('/api/feedback/run', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ token: getToken(), password }),
+      });
+      const out = (await res.json().catch(() => ({}))) as { ok?: boolean; reason?: string; open?: number };
+      if (out.ok) {
+        setPassword('');
+        toast(`Claude started on ${out.open} item${out.open === 1 ? '' : 's'}`);
+        onStarted();
+      } else {
+        setMessage(RUN_ERRORS[out.reason ?? ''] ?? 'Something went wrong. Try again later.');
+      }
+    } catch {
+      setMessage('Could not reach the server.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="mt-6 rounded-2xl bg-teal-50 p-4 ring-1 ring-teal-100">
+      <h3 className="font-semibold text-teal-900">Start Claude on waiting items</h3>
+      <p className="mb-3 text-xs text-teal-800">Claude fixes what it can, puts it live and replies on each item.</p>
+      <div className="flex gap-2">
+        <input
+          id="claude-password"
+          type="password"
+          autoComplete="off"
+          className={inputCls}
+          placeholder="Master password"
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+        />
+        <PrimaryButton disabled={busy || !password} onClick={start}>
+          {busy ? 'Starting…' : 'Start'}
+        </PrimaryButton>
+      </div>
+      {message && <p className="mt-2 text-sm text-rose-600">{message}</p>}
+    </section>
   );
 }
