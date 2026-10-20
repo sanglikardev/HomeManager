@@ -17,6 +17,7 @@ export type Category =
   | 'Snacks & Sweets'
   | 'Sauces & Pickles'
   | 'Beverages'
+  | 'Bathroom & Personal care'
   | 'Household';
 
 export const CATEGORIES: Category[] = [
@@ -32,6 +33,7 @@ export const CATEGORIES: Category[] = [
   'Snacks & Sweets',
   'Sauces & Pickles',
   'Beverages',
+  'Bathroom & Personal care',
   'Household',
 ];
 
@@ -192,6 +194,7 @@ export interface UpkeepTask {
   lastDone: string | null; // YYYY-MM-DD
   dueDate: string | null; // YYYY-MM-DD, renewals only
   remindDays: number; // start reminding this many days before
+  sortOrder?: number; // position in the priority list; unset = after the ordered ones, most frequent first
   weekdays?: number[]; // recurring only: days of the week it appears in the weekly routine, 0 = Sunday
   details: Record<string, string>; // policy number, provider, vehicle number...
   history: string[]; // dates it was done or renewed, newest first

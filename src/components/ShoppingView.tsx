@@ -1,9 +1,12 @@
 import { Check, Copy, Plus, RefreshCw, Share2, Trash2, X } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { newItem } from '../data/seed';
+import { TAB_STARTERS } from '../data/seedItems';
 import { WEEKDAYS } from '../lib/dates';
 import { daysUntilWeeklyOrder } from '../lib/pantry';
+import { SHELF_TABS, shelfGroups, type ShopTab } from '../lib/shopTabs';
 import { useStore } from '../store/store';
-import type { Bucket, ShoppingEntry } from '../types';
+import { CATEGORIES, type Bucket, type Item, type ShoppingEntry } from '../types';
 import { useToast } from './toast';
 import { inputCls, Pill, Segmented } from './ui';
 
@@ -13,6 +16,18 @@ export function ShoppingView() {
   const [name, setName] = useState('');
   const [bucket, setBucket] = useState<Bucket>('quick');
   const settings = store.data.household.settings;
+  const [tab, setTab] = useState<ShopTab>('buy');
+
+  // Households set up before the Washroom and Sink shelves existed get the starter items once.
+  const hasWashroom = store.data.items.some((i) => i.category === 'Bathroom & Personal care');
+  useEffect(() => {
+    if (hasWashroom) return;
+    const have = new Set(store.data.items.map((i) => i.name.toLowerCase()));
+    const iso = new Date().toISOString();
+    const fresh = TAB_STARTERS.filter((s) => !have.has(s.name.toLowerCase())).map((s) => newItem(s, iso, 1));
+    if (fresh.length) store.saveItems(fresh);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasWashroom]);
 
   const { quick, weekly, bought } = useMemo(() => {
     const sorted = [...store.data.shopping].sort((a, b) => a.name.localeCompare(b.name));
@@ -96,6 +111,21 @@ export function ShoppingView() {
         />
       </div>
 
+      <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
+        {[{ value: 'buy' as ShopTab, label: `Buy list${quick.length + weekly.length ? ` (${quick.length + weekly.length})` : ''}` }, ...SHELF_TABS].map((t) => (
+          <button
+            key={t.value}
+            onClick={() => setTab(t.value)}
+            className={`shrink-0 rounded-full px-3.5 py-1.5 text-sm font-medium ${tab === t.value ? 'bg-stone-900 text-white' : 'bg-white text-stone-600 ring-1 ring-stone-200'}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab !== 'buy' && <Shelf tab={tab} items={store.data.items} needed={[...quick, ...weekly]} />}
+
+      {tab === 'buy' && (<>
       {!empty && (
         <div className="flex gap-2">
           <a
@@ -142,7 +172,44 @@ export function ShoppingView() {
           </div>
         </section>
       )}
+      </>)}
     </div>
+  );
+}
+
+// One shelf tab: tap an item to put it on the Buy list, tap again to take it off.
+function Shelf({ tab, items, needed }: { tab: Exclude<ShopTab, 'buy'>; items: Item[]; needed: ShoppingEntry[] }) {
+  const store = useStore();
+  const onList = new Map(needed.map((e) => [e.itemId ?? e.name.toLowerCase(), e]));
+  const groups = shelfGroups(items, tab, CATEGORIES);
+  if (!groups.length) return <p className="rounded-2xl bg-white p-6 text-center text-sm text-stone-500 ring-1 ring-stone-200">Nothing here yet. Add items from the Pantry.</p>;
+  return (
+    <>
+      {groups.map((g) => (
+        <section key={g.category}>
+          <h2 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-stone-500">{g.category}</h2>
+          <div className="divide-y divide-stone-100 rounded-2xl bg-white ring-1 ring-stone-200">
+            {g.items.map((i) => {
+              const entry = onList.get(i.id) ?? onList.get(i.name.toLowerCase());
+              return (
+                <button
+                  key={i.id}
+                  onClick={() => (entry ? entry.source === 'manual' && store.removeShopping(entry.id) : store.addShopping(i.name, i.bucket))}
+                  className="flex w-full items-center gap-3 px-4 py-3 text-left"
+                  aria-pressed={!!entry}
+                >
+                  <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 ${entry ? 'border-teal-700 bg-teal-700 text-white' : 'border-stone-300'}`}>
+                    {entry && <Check size={14} />}
+                  </span>
+                  <span className="flex-1 font-medium text-stone-900">{i.name}</span>
+                  <span className="text-xs text-stone-500">{entry ? 'On the buy list' : i.packLabel}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </>
   );
 }
 

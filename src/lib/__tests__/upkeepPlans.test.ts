@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Plan, UpkeepTask } from '../../types';
 import { choreFor, entriesOn, entryCountsByDay, monthGrid, routineOn, routineWeek, weekChores, weekStart, withMark } from '../calendar';
 import { activeTrip, buildChecklist, dueTasks, holdPerishables } from '../plans';
-import { markDone, nextDue, unmarkDone, sortByUrgency, upkeepStatus } from '../upkeep';
+import { markDone, moveTask, nextDue, sortByPriority, unmarkDone, sortByUrgency, upkeepStatus } from '../upkeep';
 
 const task = (p: Partial<UpkeepTask>): UpkeepTask => ({
   id: 'x', name: 'Task', category: 'home', kind: 'recurring', intervalDays: 30, lastDone: null, dueDate: null, remindDays: 7, details: {}, history: [], notes: '', ...p,
@@ -27,6 +27,30 @@ describe('upkeep', () => {
     const a = task({ id: 'a', name: 'A', lastDone: '2026-10-15' });
     const b = task({ id: 'b', name: 'B', lastDone: '2026-08-01' });
     expect(sortByUrgency([a, b], '2026-10-20').map((t) => t.id)).toEqual(['b', 'a']);
+  });
+});
+
+describe('priority order', () => {
+  const a = task({ id: 'a', name: 'AC', intervalDays: 180 });
+  const b = task({ id: 'b', name: 'Laundry', intervalDays: 3 });
+  const c = task({ id: 'c', name: 'Plants', intervalDays: 1 });
+  it('puts the most frequent first until the user orders them', () => {
+    expect(sortByPriority([a, b, c]).map((t) => t.id)).toEqual(['c', 'b', 'a']);
+  });
+  it('keeps the saved order, with unordered tasks after', () => {
+    expect(sortByPriority([a, { ...b, sortOrder: 1 }, { ...c, sortOrder: 0 }]).map((t) => t.id)).toEqual(['c', 'b', 'a']);
+    expect(sortByPriority([{ ...a, sortOrder: 0 }, b, c]).map((t) => t.id)).toEqual(['a', 'c', 'b']);
+  });
+  it('moves a task and renumbers, leaving hidden tasks in place', () => {
+    const ordered = sortByPriority([a, b, c]);
+    const moved = moveTask(ordered, ordered, 'a', 0);
+    expect(sortByPriority(moved.length ? [...moved, ...ordered.filter((t) => !moved.some((m) => m.id === t.id))] : ordered).map((t) => t.id)).toEqual(['a', 'c', 'b']);
+    const d = task({ id: 'd', name: 'Car', category: 'vehicle', intervalDays: 2 });
+    const full = [c, d, b, a];
+    const shown = [c, b, a];
+    const res = moveTask(full, shown, 'a', 0);
+    const final = sortByPriority(full.map((t) => res.find((r) => r.id === t.id) ?? t));
+    expect(final.map((t) => t.id)).toEqual(['a', 'd', 'c', 'b']);
   });
 });
 

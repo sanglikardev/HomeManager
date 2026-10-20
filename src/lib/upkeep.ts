@@ -59,3 +59,27 @@ export function unmarkDone(task: UpkeepTask, date: string): UpkeepTask {
   const history = task.history.filter((d) => d !== date);
   return { ...task, history, lastDone: history[0] ?? null };
 }
+
+// The user's own priority list: ordered tasks first, then the rest with the most frequent on top.
+export function sortByPriority(tasks: UpkeepTask[]): UpkeepTask[] {
+  return [...tasks].sort(
+    (a, b) =>
+      (a.sortOrder ?? Infinity) - (b.sortOrder ?? Infinity) ||
+      (a.intervalDays ?? Infinity) - (b.intervalDays ?? Infinity) ||
+      a.name.localeCompare(b.name),
+  );
+}
+
+// Moves one task to position toIndex of the shown list and returns the tasks whose
+// sortOrder changed. Tasks hidden by a filter keep their slots in the full order.
+export function moveTask(ordered: UpkeepTask[], shown: UpkeepTask[], id: string, toIndex: number): UpkeepTask[] {
+  const ids = shown.map((t) => t.id);
+  const from = ids.indexOf(id);
+  if (from < 0) return [];
+  ids.splice(toIndex, 0, ...ids.splice(from, 1));
+  const shownSet = new Set(ids);
+  const byId = new Map(ordered.map((t) => [t.id, t]));
+  let k = 0;
+  const full = ordered.map((t) => (shownSet.has(t.id) ? byId.get(ids[k++])! : t));
+  return full.map((t, i) => ({ ...t, sortOrder: i })).filter((t) => byId.get(t.id)!.sortOrder !== t.sortOrder);
+}

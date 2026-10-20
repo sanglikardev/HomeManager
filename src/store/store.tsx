@@ -82,6 +82,7 @@ export interface Store {
   clearBought(): void;
   refreshShopping(): void;
   saveItem(item: Item): void;
+  saveItems(items: Item[]): void;
   deleteItem(id: string): void;
   saveDish(dish: Dish): void;
   deleteDish(id: string): void;
@@ -322,6 +323,7 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
       refreshShopping: () => commit(() => ({})),
 
       saveItem: (item) => commit(() => ({ items: [item] })),
+      saveItems: (items) => commit(() => ({ items })),
 
       deleteItem: (id) =>
         commit((d) => ({

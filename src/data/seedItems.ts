@@ -27,6 +27,30 @@ const N = 'Snacks & Sweets' as const;
 const SP = 'Sauces & Pickles' as const;
 const BV = 'Beverages' as const;
 const H = 'Household' as const;
+const BP = 'Bathroom & Personal care' as const;
+
+// Washroom and sink/cleaning shelf for the Shopping tabs. No daily use: they only
+// get on the list when someone taps them, never on their own.
+export const TAB_STARTERS: SeedItem[] = [
+  { name: 'Toothbrush', category: BP, packLabel: '1', bucket: 'weekly' },
+  { name: 'Toothpaste', category: BP, packLabel: '1 tube', bucket: 'weekly' },
+  { name: 'Face wash', category: BP, packLabel: '1 tube', bucket: 'weekly' },
+  { name: 'Shampoo', category: BP, packLabel: '1 bottle', bucket: 'weekly' },
+  { name: 'Conditioner', category: BP, packLabel: '1 bottle', bucket: 'weekly' },
+  { name: 'Bathing soap', category: BP, packLabel: '4 bars', bucket: 'weekly' },
+  { name: 'Body wash', category: BP, packLabel: '1 bottle', bucket: 'weekly' },
+  { name: 'Hand wash', category: BP, packLabel: '1 refill', bucket: 'weekly' },
+  { name: 'Razor', category: BP, packLabel: '1 pack', bucket: 'weekly' },
+  { name: 'Body lotion', category: BP, packLabel: '1 bottle', bucket: 'weekly' },
+  { name: 'Hair oil', category: BP, packLabel: '1 bottle', bucket: 'weekly' },
+  { name: 'Vim bar', category: H, packLabel: '1 bar', bucket: 'weekly' },
+  { name: 'Vim liquid', category: H, packLabel: '1 bottle', bucket: 'weekly' },
+  { name: 'Sponge', category: H, packLabel: '1 pack', bucket: 'weekly' },
+  { name: 'Scratch guard', category: H, packLabel: '1 pack', bucket: 'weekly' },
+  { name: 'Pitambari powder', category: H, packLabel: '1 pack', bucket: 'weekly' },
+  { name: 'Floor cleaner', category: H, packLabel: '1 bottle', bucket: 'weekly' },
+  { name: 'Phenyl', category: H, packLabel: '1 bottle', bucket: 'weekly' },
+];
 
 export const SEED_ITEMS: SeedItem[] = [
   // Vegetables
@@ -133,4 +157,6 @@ export const SEED_ITEMS: SeedItem[] = [
   { name: 'Toilet cleaner', category: H, packLabel: '1 bottle', bucket: 'weekly', dailyUse: 0.02 },
   { name: 'Garbage bags', category: H, packLabel: '1 roll', bucket: 'weekly', dailyUse: 0.04 },
   { name: 'Tissue paper', category: H, packLabel: '1 pack', bucket: 'weekly', dailyUse: 0.04 },
+  ...TAB_STARTERS,
 ];
+

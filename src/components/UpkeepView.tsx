@@ -1,9 +1,9 @@
-import { Check, Plus, RefreshCw } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Check, GripVertical, Plus, RefreshCw } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { UPKEEP_TEMPLATES } from '../data/upkeepTemplates';
 import { localDate } from '../lib/dates';
 import { uid } from '../lib/id';
-import { dueLabel, markDone, sortByUrgency, upkeepStatus, type UpkeepStatus } from '../lib/upkeep';
+import { dueLabel, markDone, moveTask, sortByPriority, upkeepStatus, type UpkeepStatus } from '../lib/upkeep';
 import { useStore } from '../store/store';
 import { UPKEEP_CATEGORIES, type UpkeepTask } from '../types';
 import { useToast } from './toast';
@@ -26,10 +26,68 @@ export function UpkeepView() {
   const [picking, setPicking] = useState(false);
   const [filter, setFilter] = useState<'all' | UpkeepTask['category']>('all');
 
-  const tasks = useMemo(() => sortByUrgency(store.data.upkeep, today), [store.data.upkeep, today]);
+  const tasks = useMemo(() => sortByPriority(store.data.upkeep), [store.data.upkeep]);
   const shown = tasks.filter((t) => filter === 'all' || t.category === filter);
   const overdue = tasks.filter((t) => upkeepStatus(t, today) === 'overdue').length;
   const soon = tasks.filter((t) => upkeepStatus(t, today) === 'soon').length;
+
+  // Long-press a row, then drag it to a new place in the priority list.
+  const [drag, setDrag] = useState<{ id: string; to: number } | null>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const timer = useRef<number | undefined>(undefined);
+  const dragRef = useRef(drag);
+  dragRef.current = drag;
+
+  useEffect(() => {
+    if (!drag) return;
+    const index = (y: number) => {
+      const rows = Array.from(listRef.current?.querySelectorAll<HTMLElement>('[data-row]') ?? []);
+      let to = rows.length - 1;
+      for (let i = 0; i < rows.length; i++) {
+        const b = rows[i].getBoundingClientRect();
+        if (y < b.top + b.height / 2) {
+          to = i;
+          break;
+        }
+      }
+      return to;
+    };
+    const move = (e: PointerEvent | TouchEvent) => {
+      e.preventDefault();
+      const y = 'touches' in e ? e.touches[0].clientY : e.clientY;
+      setDrag((d) => (d ? { ...d, to: index(y) } : d));
+    };
+    const end = () => {
+      const d = dragRef.current;
+      setDrag(null);
+      if (d) {
+        const changed = moveTask(tasks, shown, d.id, d.to);
+        if (changed.length) store.saveUpkeepMany(changed);
+      }
+    };
+    window.addEventListener('touchmove', move, { passive: false });
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', end);
+    window.addEventListener('touchend', end);
+    window.addEventListener('pointercancel', end);
+    return () => {
+      window.removeEventListener('touchmove', move);
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', end);
+      window.removeEventListener('touchend', end);
+      window.removeEventListener('pointercancel', end);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [drag?.id]);
+
+  const startPress = (id: string, to: number) => {
+    window.clearTimeout(timer.current);
+    timer.current = window.setTimeout(() => {
+      navigator.vibrate?.(30);
+      setDrag({ id, to });
+    }, 400);
+  };
+  const cancelPress = () => window.clearTimeout(timer.current);
 
   const done = (t: UpkeepTask) => {
     if (t.kind === 'renewal') {
@@ -69,12 +127,24 @@ export function UpkeepView() {
         ))}
       </div>
 
-      <div className="divide-y divide-stone-100 overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
-        {shown.map((t) => {
+      <p className="text-xs text-stone-500">Your priority order. Press and hold a task, then drag it to move it.</p>
+      <div ref={listRef} className="divide-y divide-stone-100 overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
+        {(drag ? moveShown(shown, drag) : shown).map((t, i) => {
           const status = upkeepStatus(t, today);
           return (
-            <div key={t.id} className="relative flex items-center gap-3 py-3 pl-5 pr-3">
+            <div
+              key={t.id}
+              data-row
+              onPointerDown={() => startPress(t.id, i)}
+              onPointerUp={cancelPress}
+              onPointerCancel={cancelPress}
+              onPointerLeave={() => !drag && cancelPress()}
+              onContextMenu={(e) => e.preventDefault()}
+              style={drag ? { touchAction: 'none' } : undefined}
+              className={`relative flex select-none items-center gap-3 py-3 pl-5 pr-3 ${drag?.id === t.id ? 'bg-teal-50 shadow-md ring-2 ring-teal-500' : ''}`}
+            >
               <span className={`absolute inset-y-2 left-0 w-1.5 rounded-r ${STATUS_STYLE[status].stripe}`} />
+              {drag?.id === t.id && <GripVertical size={18} className="-ml-2 shrink-0 text-teal-700" />}
               <button onClick={() => setEditing(t)} className="min-w-0 flex-1 text-left">
                 <p className="font-medium text-stone-900">{t.name}</p>
                 <p className={`text-xs ${STATUS_STYLE[status].text}`}>
@@ -188,4 +258,11 @@ function TemplatePicker({ existing, onDone }: { existing: Set<string>; onDone?: 
       </PrimaryButton>
     </div>
   );
+}
+
+function moveShown(shown: UpkeepTask[], drag: { id: string; to: number }): UpkeepTask[] {
+  const list = shown.filter((t) => t.id !== drag.id);
+  const t = shown.find((x) => x.id === drag.id);
+  if (t) list.splice(drag.to, 0, t);
+  return list;
 }

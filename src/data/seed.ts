@@ -1,11 +1,15 @@
 import type { Dish, DishIngredient, Item } from '../types';
 import { uid } from '../lib/id';
 import { SEED_DISHES } from './seedDishes';
-import { SEED_ITEMS } from './seedItems';
+import { SEED_ITEMS, type SeedItem } from './seedItems';
 
 export function seedItems(now: Date = new Date()): Item[] {
   const iso = now.toISOString();
-  return SEED_ITEMS.map((s) => ({
+  return SEED_ITEMS.map((s) => newItem(s, iso, 0.5));
+}
+
+export function newItem(s: SeedItem, iso: string, level: number): Item {
+  return {
     id: uid(),
     name: s.name,
     category: s.category,
@@ -15,12 +19,12 @@ export function seedItems(now: Date = new Date()): Item[] {
     shelfLifeDays: s.shelfLifeDays ?? null,
     dailyUse: s.dailyUse ?? 0,
     // Unknown until the pantry walk: treated as "probably some", unconfirmed.
-    level: 0.5,
+    level,
     levelAt: iso,
     confirmedAt: null,
     purchasedAt: null,
     askedAt: null,
-  }));
+  };
 }
 
 export function parseIngredients(spec: string, items: Item[]): { ingredients: DishIngredient[]; unknown: string[] } {

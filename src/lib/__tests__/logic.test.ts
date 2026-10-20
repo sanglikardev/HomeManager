@@ -96,3 +96,18 @@ describe('questions', () => {
     expect(pickQuestions(answered, new Set(), NOW).length).toBe(0);
   });
 });
+
+import { shelfGroups, tabOf } from '../shopTabs';
+describe('shopping tabs', () => {
+  it('sends food to Kitchen and the rest to their own shelves', () => {
+    expect(tabOf('Spices & Masalas')).toBe('kitchen');
+    expect(tabOf('Vegetables')).toBe('kitchen');
+    expect(tabOf('Bathroom & Personal care')).toBe('washroom');
+    expect(tabOf('Household')).toBe('sink');
+  });
+  it('groups a shelf by category', () => {
+    const it = (name: string, category: Item['category']) => ({ name, category }) as Item;
+    const g = shelfGroups([it('Soap', 'Household'), it('Salt', 'Spices & Masalas'), it('Onion', 'Vegetables')], 'kitchen', ['Vegetables', 'Spices & Masalas', 'Household']);
+    expect(g.map((x) => x.category)).toEqual(['Vegetables', 'Spices & Masalas']);
+  });
+});
