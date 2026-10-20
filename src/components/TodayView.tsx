@@ -80,7 +80,7 @@ export function TodayView({ onOpenShopping, onGo, settingsButton }: { onOpenShop
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <header className="flex items-end justify-between">
         <div>
           <p className="text-sm text-stone-500">{greeting}</p>
@@ -110,17 +110,17 @@ export function TodayView({ onOpenShopping, onGo, settingsButton }: { onOpenShop
 
       {!away && settings.slots.map((slot) => (
         <section key={slot}>
-          <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-stone-500">{SLOT_LABEL[slot]}</h2>
+          <h2 className="mb-1.5 flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-stone-500">{SLOT_LABEL[slot]}</h2>
           {logged[slot] ? (
             <LoggedCard meal={logged[slot]!} onUndo={() => store.undoMeal(logged[slot]!.id)} />
           ) : bySlot[slot]?.length ? (
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               <SuggestionCard s={bySlot[slot][0]} top preview={day === 'tomorrow'} onCook={() => cook(slot, bySlot[slot][0])} onAddMissing={addMissing} />
               {bySlot[slot].slice(1).map((s) => (
                 <SuggestionCard key={s.dish.id} s={s} preview={day === 'tomorrow'} onCook={() => cook(slot, s)} onAddMissing={addMissing} />
               ))}
               {day === 'today' && (
-                <button onClick={() => setPicker(slot)} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-stone-300 py-3 text-sm font-medium text-stone-600 hover:bg-white">
+                <button onClick={() => setPicker(slot)} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-stone-300 py-2 text-xs font-medium text-stone-600 hover:bg-white">
                   <UtensilsCrossed size={16} /> Something else, ordered in, or leftovers
                 </button>
               )}
@@ -138,22 +138,6 @@ export function TodayView({ onOpenShopping, onGo, settingsButton }: { onOpenShop
         </section>
       ))}
 
-      {!away && dayTasks.length > 0 && (
-        <section>
-          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">{day === 'today' ? "Today's tasks" : "Tomorrow's tasks"}</h2>
-          <div className="divide-y divide-stone-100 overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
-            {dayTasks.map((t) => (
-              <button key={`${t.key}@${t.origDate}`} onClick={() => toggleTask(t)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
-                <span className={`flex h-6 w-6 items-center justify-center rounded-full border ${t.done ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-stone-300'}`}>
-                  {t.done && <Check size={14} />}
-                </span>
-                <span className={`flex-1 text-sm ${t.done ? 'text-stone-400 line-through' : 'text-stone-900'}`}>{t.label}</span>
-              </button>
-            ))}
-          </div>
-        </section>
-      )}
-
       {settings.cookAtHome && settings.slots.some((s) => logged[s]?.kind === 'cooked') && (
         <a
           href={`https://wa.me/?text=${encodeURIComponent(
@@ -169,6 +153,22 @@ export function TodayView({ onOpenShopping, onGo, settingsButton }: { onOpenShop
         >
           <Send size={16} /> Send the menu to the cook
         </a>
+      )}
+
+      {!away && dayTasks.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">{day === 'today' ? "Today's tasks" : "Tomorrow's tasks"}</h2>
+          <div className="divide-y divide-stone-100 overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
+            {dayTasks.map((t) => (
+              <button key={`${t.key}@${t.origDate}`} onClick={() => toggleTask(t)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+                <span className={`flex h-6 w-6 items-center justify-center rounded-full border ${t.done ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-stone-300'}`}>
+                  {t.done && <Check size={14} />}
+                </span>
+                <span className={`flex-1 text-sm ${t.done ? 'text-stone-400 line-through' : 'text-stone-900'}`}>{t.label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
       )}
 
       <ComingUpCard today={today} onGo={onGo} />
@@ -215,9 +215,9 @@ function kindLabel(m: MealLog) {
 function SuggestionCard({ s, top, preview, onCook, onAddMissing }: { s: Suggestion; top?: boolean; preview?: boolean; onCook: () => void; onAddMissing: (items: Suggestion['missing']) => void }) {
   if (!top) {
     return (
-      <div className="flex items-center gap-3 rounded-2xl bg-white px-4 py-3 ring-1 ring-stone-200">
+      <div className="flex items-center gap-3 rounded-2xl bg-white px-3 py-2 ring-1 ring-stone-200">
         <div className="min-w-0 flex-1">
-          <p className="font-medium text-stone-900">{s.dish.name}</p>
+          <p className="text-sm font-medium text-stone-900">{s.dish.name}</p>
           <p className="truncate text-xs text-stone-500">{s.reasons.join(' · ') || `${s.dish.cookMinutes} min`}</p>
         </div>
         {preview ? (
@@ -227,7 +227,7 @@ function SuggestionCard({ s, top, preview, onCook, onAddMissing }: { s: Suggesti
             </button>
           )
         ) : (
-          <button onClick={onCook} className="rounded-xl bg-stone-100 px-3 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-200">
+          <button onClick={onCook} className="rounded-xl bg-stone-100 px-3 py-1.5 text-sm font-semibold text-stone-800 hover:bg-stone-200">
             Pick
           </button>
         )}
@@ -236,18 +236,18 @@ function SuggestionCard({ s, top, preview, onCook, onAddMissing }: { s: Suggesti
   }
   return (
     <div className="overflow-hidden rounded-3xl bg-white shadow-sm ring-1 ring-stone-200">
-      <div className="bg-gradient-to-br from-teal-700 to-teal-600 px-5 py-4 text-white">
+      <div className="bg-gradient-to-br from-teal-700 to-teal-600 px-4 py-2.5 text-white">
         <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-teal-100">
           <Sparkles size={14} /> Top pick
         </p>
-        <h3 className="mt-1 text-xl font-semibold">{s.dish.name}</h3>
-        <p className="mt-0.5 flex items-center gap-1 text-sm text-teal-100">
+        <h3 className="text-lg font-semibold leading-tight">{s.dish.name}</h3>
+        <p className="flex items-center gap-1 text-xs text-teal-100">
           <Clock size={14} /> {s.dish.cookMinutes} min
         </p>
       </div>
-      <div className="space-y-3 px-5 py-4">
+      <div className="space-y-2 px-4 py-3">
         {s.reasons.length > 0 && (
-          <ul className="space-y-1 text-sm text-stone-600">
+          <ul className="space-y-0.5 text-xs text-stone-600">
             {s.reasons.map((r) => (
               <li key={r} className="flex gap-2">
                 <span className={r.startsWith('Needs') ? 'text-amber-600' : 'text-teal-600'}>•</span>
@@ -258,12 +258,12 @@ function SuggestionCard({ s, top, preview, onCook, onAddMissing }: { s: Suggesti
         )}
         <div className="flex gap-2">
           {!preview && (
-            <button onClick={onCook} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-teal-700 py-3 font-semibold text-white hover:bg-teal-800">
+            <button onClick={onCook} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-teal-700 py-2.5 text-sm font-semibold text-white hover:bg-teal-800">
               <ChefHat size={18} /> Cook this
             </button>
           )}
           {s.missing.length > 0 && (
-            <button onClick={() => onAddMissing(s.missing)} className={`flex items-center justify-center gap-1 rounded-2xl bg-amber-50 px-3 py-3 text-sm font-semibold text-amber-800 ring-1 ring-amber-200 ${preview ? 'flex-1' : ''}`}>
+            <button onClick={() => onAddMissing(s.missing)} className={`flex items-center justify-center gap-1 rounded-2xl bg-amber-50 px-3 py-2.5 text-sm font-semibold text-amber-800 ring-1 ring-amber-200 ${preview ? 'flex-1' : ''}`}>
               <Plus size={16} /> Add missing
             </button>
           )}
