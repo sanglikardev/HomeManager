@@ -4,6 +4,7 @@ import { WeeklyChores } from './components/CalendarSection';
 import type { Dest } from './components/ComingUp';
 import { DishesView } from './components/DishesView';
 import { LoginScreen } from './components/LoginScreen';
+import { DocsView } from './components/DocsView';
 import { HelpView } from './components/HelpView';
 import { FeedbackSheet, useFeedbackReplies } from './components/FeedbackSheet';
 import { MoneyView } from './components/MoneyView';
@@ -164,9 +165,9 @@ function JoinOrCreate({ backend, onCreate, onJoined }: { backend: Backend; onCre
 
 type Tab = 'today' | 'food' | 'home' | 'plans' | 'money' | 'more';
 type FoodPage = 'shopping' | 'pantry' | 'dishes';
-type HomePage = 'upkeep' | 'routine' | 'help';
+type HomePage = 'upkeep' | 'routine' | 'help' | 'docs';
 const FOOD: FoodPage[] = ['shopping', 'pantry', 'dishes'];
-const HOME: HomePage[] = ['upkeep', 'routine', 'help'];
+const HOME: HomePage[] = ['upkeep', 'routine', 'help', 'docs'];
 
 // Old links (#kitchen, #upkeep...) still land on the right screen.
 function fromHash(h: string): { tab: Tab; food?: FoodPage; home?: HomePage } {
@@ -244,7 +245,7 @@ function Shell() {
         )}
         {tab === 'home' && (
           <>
-            <SubTabs value={home} onChange={setHome} options={[{ value: 'upkeep', label: 'Upkeep' }, { value: 'routine', label: 'Routine' }, { value: 'help', label: 'Help' }]} />
+            <SubTabs value={home} onChange={setHome} options={[{ value: 'upkeep', label: 'Upkeep' }, { value: 'routine', label: 'Routine' }, { value: 'help', label: 'Help' }, { value: 'docs', label: 'Docs' }]} />
             {home === 'upkeep' && <UpkeepView />}
             {home === 'routine' && (
               <div className="space-y-4">
@@ -255,6 +256,7 @@ function Shell() {
           </>
         )}
         {tab === 'home' && home === 'help' && <HelpView />}
+        {tab === 'home' && home === 'docs' && <DocsView />}
         {tab === 'plans' && <PlansView />}
         {tab === 'money' && <MoneyView />}
         {tab === 'more' && <MoreView onBack={() => setTab('today')} />}

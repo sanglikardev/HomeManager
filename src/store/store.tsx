@@ -23,7 +23,7 @@ import type {
   Staff,
   UpkeepTask,
 } from '../types';
-import type { Backend, TableName } from './backend';
+import type { Backend, DocFile, TableName } from './backend';
 
 // A batch of changes: rows to write and ids to delete, per table.
 interface Change {
@@ -39,6 +39,8 @@ interface Change {
   staff?: Staff[];
   docs?: HomeDoc[];
   removed?: Partial<Record<TableName, string[]>>;
+  docFiles?: DocFile[]; // written after the docs they belong to
+  removedDocFiles?: string[];
 }
 
 function applyChange(data: AppData, c: Change): AppData {
@@ -113,7 +115,7 @@ export interface Store {
   unpayBill(before: Bill, expenseId: string): void;
   saveStaff(staff: Staff, expenses?: Expense[], removedExpenses?: string[]): void;
   deleteStaff(id: string): void;
-  saveDoc(doc: HomeDoc): void;
+  saveDoc(doc: HomeDoc, newFiles?: DocFile[], removedFileIds?: string[]): void;
   deleteDoc(doc: HomeDoc): void;
   updateHousehold(patch: Partial<Omit<Household, 'settings'>> & { settings?: Partial<HouseholdSettings> }): void;
 }
@@ -147,6 +149,8 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
             const rows = c[t] as object[] | undefined;
             if (rows?.length) await backend.upsert(t, rows);
           }
+          for (const f of c.docFiles ?? []) await backend.putDocFile(f);
+          if (c.removedDocFiles?.length) await backend.removeDocFiles(c.removedDocFiles);
           for (const t of [...tables].reverse()) {
             const ids = c.removed?.[t];
             if (ids?.length) await backend.remove(t, ids);
@@ -388,8 +392,8 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
       saveStaff: (staff, expenses, removedExpenses) =>
         commit(() => ({ staff: [staff], expenses: expenses ?? [], removed: removedExpenses?.length ? { expenses: removedExpenses } : undefined }), false),
       deleteStaff: (id) => commit(() => ({ removed: { staff: [id] } }), false),
-      saveDoc: (doc) => commit(() => ({ docs: [doc] }), false),
-      deleteDoc: (doc) => commit(() => ({ removed: { docs: [doc.id] } }), false),
+      saveDoc: (doc, newFiles, removedFileIds) => commit(() => ({ docs: [doc], docFiles: newFiles, removedDocFiles: removedFileIds }), false),
+      deleteDoc: (doc) => commit(() => ({ removed: { docs: [doc.id] }, removedDocFiles: doc.files.map((f) => f.id) }), false),
 
       updateHousehold: (patch) => {
         const d = dataRef.current;

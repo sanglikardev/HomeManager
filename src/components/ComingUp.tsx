@@ -2,11 +2,13 @@ import { Check, Plane, RefreshCw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { routineOn, withMark, type RoutineItem } from '../lib/calendar';
 import { addDays, friendlyDate, localDate } from '../lib/dates';
+import { docDueLabel, docsDue, docStatus } from '../lib/docs';
 import { billDueLabel, billsDue, formatINR } from '../lib/money';
 import { activeTrip, dateRange, dueTasks } from '../lib/plans';
 import { dueLabel, markDone, sortByUrgency, unmarkDone, upkeepStatus } from '../lib/upkeep';
 import { useStore } from '../store/store';
-import type { Bill, UpkeepTask } from '../types';
+import type { Bill, HomeDoc, UpkeepTask } from '../types';
+import { DocSheet } from './DocsView';
 import { PayBillSheet } from './MoneySheets';
 import { useToast } from './toast';
 import { RenewSheet } from './UpkeepSheet';
@@ -37,6 +39,8 @@ export function TodoCard({ date, onGo }: { date: string; onGo: Go }) {
     return sortByUrgency(upkeep, today).filter((t) => !inRoutine.has(t.id) && ['overdue', 'soon'].includes(upkeepStatus(t, today)));
   }, [upkeep, today, isToday, routine]);
   const tasks = useMemo(() => (isToday ? dueTasks(plans, today, 7) : []), [plans, today, isToday]);
+  const docs = useMemo(() => (isToday ? docsDue(store.data.docs, today) : []), [store.data.docs, today, isToday]);
+  const [doc, setDoc] = useState<HomeDoc | null>(null);
 
   const toggleRoutine = (item: RoutineItem) => {
     const task = item.taskId ? upkeep.find((t) => t.id === item.taskId) : undefined;
@@ -95,6 +99,16 @@ export function TodoCard({ date, onGo }: { date: string; onGo: Go }) {
         ),
       };
     }),
+    ...docs.map((d) => ({
+      key: `d-${d.id}`,
+      node: (
+        <Row stripe={docStatus(d, today) === 'expired' ? 'bg-rose-500' : 'bg-amber-500'} onOpen={() => setDoc(d)} title={d.title} sub={docDueLabel(d, today)} subCls={docStatus(d, today) === 'expired' ? 'text-rose-700' : 'text-amber-700'}>
+          <button onClick={() => setDoc(d)} className="rounded-xl bg-stone-100 px-3 py-1.5 text-xs font-semibold text-stone-800">
+            Update
+          </button>
+        </Row>
+      ),
+    })),
     ...tasks.map(({ plan, task }) => ({
       key: `p-${task.id}`,
       node: (
@@ -114,7 +128,7 @@ export function TodoCard({ date, onGo }: { date: string; onGo: Go }) {
   ];
 
   if (!rows.length) return null;
-  const open = routine.filter((r) => !r.done).length + dueBills.length + urgent.length + tasks.length;
+  const open = routine.filter((r) => !r.done).length + dueBills.length + urgent.length + tasks.length + docs.length;
   const shown = all ? rows : rows.slice(0, SHOWN);
 
   return (
@@ -135,6 +149,7 @@ export function TodoCard({ date, onGo }: { date: string; onGo: Go }) {
       </div>
       {renewing && <RenewSheet task={renewing} onClose={() => setRenewing(null)} />}
       {paying && <PayBillSheet bill={paying} onClose={() => setPaying(null)} />}
+      {doc && <DocSheet doc={doc} onClose={() => setDoc(null)} />}
     </section>
   );
 }
