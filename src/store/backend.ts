@@ -8,7 +8,7 @@ import type { AppData, Household } from '../types';
 // Cloud sign-in is HomeManager's own username + password (see
 // supabase/migrations/0002_username_login.sql), not Supabase Auth.
 
-export type TableName = 'items' | 'dishes' | 'meals' | 'shopping' | 'events' | 'upkeep' | 'plans' | 'expenses' | 'bills';
+export type TableName = 'items' | 'dishes' | 'meals' | 'shopping' | 'events' | 'upkeep' | 'plans' | 'expenses' | 'bills' | 'staff' | 'docs';
 
 const TABLES: Record<TableName, string> = {
   items: 'hm_items',
@@ -20,7 +20,17 @@ const TABLES: Record<TableName, string> = {
   plans: 'hm_plans',
   expenses: 'hm_expenses',
   bills: 'hm_bills',
+  staff: 'hm_staff',
+  docs: 'hm_docs',
 };
+
+export interface DocFile {
+  id: string;
+  docId: string;
+  name: string;
+  mime: string;
+  data: string; // base64
+}
 
 export interface Backend {
   mode: 'local' | 'cloud';
@@ -31,6 +41,9 @@ export interface Backend {
   upsert(table: TableName, rows: object[]): Promise<void>;
   remove(table: TableName, ids: string[]): Promise<void>;
   subscribe(onRemoteChange: () => void): () => void;
+  putDocFile(file: DocFile): Promise<void>;
+  getDocFile(id: string): Promise<DocFile | null>;
+  removeDocFiles(ids: string[]): Promise<void>;
 }
 
 // ---------- local ----------
@@ -51,6 +64,8 @@ export class LocalBackend implements Backend {
         this.data.plans ??= [];
         this.data.expenses ??= [];
         this.data.bills ??= [];
+        this.data.staff ??= [];
+        this.data.docs ??= [];
       }
     } catch {
       this.data = null;
@@ -95,6 +110,29 @@ export class LocalBackend implements Backend {
   }
   subscribe() {
     return () => {};
+  }
+  // Files go in their own key so the main data stays small; big ones may not fit.
+  async putDocFile(file: DocFile) {
+    try {
+      localStorage.setItem(`${LOCAL_KEY}_file_${file.id}`, JSON.stringify(file));
+    } catch {
+      throw new Error('Not enough space on this device for that file.');
+    }
+  }
+  async getDocFile(id: string) {
+    try {
+      const raw = localStorage.getItem(`${LOCAL_KEY}_file_${id}`);
+      return raw ? (JSON.parse(raw) as DocFile) : null;
+    } catch {
+      return null;
+    }
+  }
+  async removeDocFiles(ids: string[]) {
+    try {
+      ids.forEach((id) => localStorage.removeItem(`${LOCAL_KEY}_file_${id}`));
+    } catch {
+      // ignore
+    }
   }
 }
 
@@ -229,6 +267,8 @@ export class CloudBackend implements Backend {
       plans: list('plans'),
       expenses: list('expenses'),
       bills: list('bills'),
+      staff: list('staff'),
+      docs: list('docs'),
     };
   }
 
@@ -258,6 +298,19 @@ export class CloudBackend implements Backend {
   async remove(table: TableName, ids: string[]) {
     if (!ids.length) return;
     await this.call('hm_delete', { p_table: TABLES[table], p_ids: ids });
+  }
+
+  async putDocFile(file: DocFile) {
+    await this.call('hm_upsert', { p_table: 'hm_doc_files', p_rows: [rowToDb(file)] });
+  }
+
+  async getDocFile(id: string): Promise<DocFile | null> {
+    const raw = await this.call<{ name: string; mime: string; data: string } | null>('hm_doc_file', { p_id: id });
+    return raw ? { id, docId: '', ...raw } : null;
+  }
+
+  async removeDocFiles(ids: string[]) {
+    if (ids.length) await this.call('hm_delete', { p_table: 'hm_doc_files', p_ids: ids });
   }
 
   // Other family members' changes: poll a cheap version string.

@@ -10,6 +10,7 @@ import type {
   Bucket,
   Dish,
   Expense,
+  HomeDoc,
   Household,
   HouseholdSettings,
   Item,
@@ -19,6 +20,7 @@ import type {
   Plan,
   ShoppingEntry,
   Slot,
+  Staff,
   UpkeepTask,
 } from '../types';
 import type { Backend, TableName } from './backend';
@@ -34,6 +36,8 @@ interface Change {
   plans?: Plan[];
   expenses?: Expense[];
   bills?: Bill[];
+  staff?: Staff[];
+  docs?: HomeDoc[];
   removed?: Partial<Record<TableName, string[]>>;
 }
 
@@ -55,6 +59,8 @@ function applyChange(data: AppData, c: Change): AppData {
   next.plans = merge(data.plans, c.plans, c.removed?.plans);
   next.expenses = merge(data.expenses, c.expenses, c.removed?.expenses);
   next.bills = merge(data.bills, c.bills, c.removed?.bills);
+  next.staff = merge(data.staff, c.staff, c.removed?.staff);
+  next.docs = merge(data.docs, c.docs, c.removed?.docs);
   return next;
 }
 
@@ -105,6 +111,10 @@ export interface Store {
   payBill(billId: string, amount: number, date: string): string | null; // id of the logged expense
   // Undo for a payment: puts the bill back and removes the expense.
   unpayBill(before: Bill, expenseId: string): void;
+  saveStaff(staff: Staff, expenses?: Expense[], removedExpenses?: string[]): void;
+  deleteStaff(id: string): void;
+  saveDoc(doc: HomeDoc): void;
+  deleteDoc(doc: HomeDoc): void;
   updateHousehold(patch: Partial<Omit<Household, 'settings'>> & { settings?: Partial<HouseholdSettings> }): void;
 }
 
@@ -132,7 +142,7 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
       // Writes go out one batch at a time, in order.
       queue.current = queue.current
         .then(async () => {
-          const tables: TableName[] = ['items', 'dishes', 'meals', 'shopping', 'events', 'upkeep', 'plans', 'expenses', 'bills'];
+          const tables: TableName[] = ['items', 'dishes', 'meals', 'shopping', 'events', 'upkeep', 'plans', 'expenses', 'bills', 'staff', 'docs'];
           for (const t of tables) {
             const rows = c[t] as object[] | undefined;
             if (rows?.length) await backend.upsert(t, rows);
@@ -375,6 +385,11 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
         return paid.expense.id;
       },
       unpayBill: (before, expenseId) => commit(() => ({ bills: [before], removed: { expenses: [expenseId] } }), false),
+      saveStaff: (staff, expenses, removedExpenses) =>
+        commit(() => ({ staff: [staff], expenses: expenses ?? [], removed: removedExpenses?.length ? { expenses: removedExpenses } : undefined }), false),
+      deleteStaff: (id) => commit(() => ({ removed: { staff: [id] } }), false),
+      saveDoc: (doc) => commit(() => ({ docs: [doc] }), false),
+      deleteDoc: (doc) => commit(() => ({ removed: { docs: [doc.id] } }), false),
 
       updateHousehold: (patch) => {
         const d = dataRef.current;

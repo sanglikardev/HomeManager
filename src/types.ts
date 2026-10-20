@@ -269,6 +269,75 @@ export interface Bill {
   notes: string;
 }
 
+// ---------- household help ----------
+
+export type LeaveKind = 'full' | 'half';
+
+export interface StaffAdvance {
+  id: string;
+  date: string;
+  amount: number;
+  note: string;
+  settledMonth: string | null; // YYYY-MM whose salary it was taken out of
+}
+
+export interface StaffPayment {
+  month: string; // YYYY-MM
+  amount: number;
+  date: string;
+  expenseId: string | null;
+}
+
+export interface Staff {
+  id: string;
+  name: string;
+  role: string; // cook, cleaning, driver, nanny...
+  monthlySalary: number;
+  paidLeaves: number; // leave days a month that are not deducted
+  weeklyOff: number[]; // 0 = Sunday
+  phone: string;
+  notes: string;
+  active: boolean;
+  startDate: string | null;
+  leaves: Record<string, LeaveKind>; // only the days off are marked
+  advances: StaffAdvance[];
+  payments: StaffPayment[];
+  createdAt: string;
+}
+
+// ---------- documents & warranties ----------
+
+export type DocCategory = 'id' | 'home' | 'vehicle' | 'appliance' | 'insurance' | 'medical' | 'finance' | 'other';
+export const DOC_CATEGORIES: { value: DocCategory; label: string }[] = [
+  { value: 'appliance', label: 'Warranties' },
+  { value: 'id', label: 'ID' },
+  { value: 'home', label: 'Home' },
+  { value: 'vehicle', label: 'Vehicle' },
+  { value: 'insurance', label: 'Insurance' },
+  { value: 'medical', label: 'Medical' },
+  { value: 'finance', label: 'Finance' },
+  { value: 'other', label: 'Other' },
+];
+
+export interface DocFileMeta {
+  id: string;
+  name: string;
+  mime: string;
+  size: number; // bytes of the stored file
+}
+
+export interface HomeDoc {
+  id: string;
+  title: string;
+  category: DocCategory;
+  number: string; // policy, serial or document number
+  expiryDate: string | null; // warranty end, renewal or expiry
+  remindDays: number;
+  notes: string;
+  files: DocFileMeta[];
+  createdAt: string;
+}
+
 export interface AppData {
   household: Household;
   items: Item[];
@@ -280,4 +349,6 @@ export interface AppData {
   plans: Plan[];
   expenses: Expense[];
   bills: Bill[];
+  staff: Staff[];
+  docs: HomeDoc[];
 }

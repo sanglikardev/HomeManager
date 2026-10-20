@@ -1,10 +1,11 @@
-import { CalendarDays, Check, ChefHat, ChevronDown, Clock, HelpCircle, Plus, RotateCcw, Send, ShoppingCart, Sparkles, Undo2, UtensilsCrossed, Wallet } from 'lucide-react';
+import { CalendarDays, Check, ChefHat, ChevronDown, Clock, HelpCircle, Plus, RotateCcw, Send, ShoppingCart, Sparkles, Undo2, UserRound, UtensilsCrossed, Wallet } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { addDays, localDate, parseLocalDate, WEEKDAYS } from '../lib/dates';
 import { billsDue, budgetState, monthOf, summarize } from '../lib/money';
 import { activeTrip, countdown, upcomingPlans } from '../lib/plans';
 import { pickQuestions, type Question } from '../lib/questions';
 import { suggest, type Suggestion } from '../lib/suggest';
+import { offToday } from '../lib/staff';
 import { mealPlanOfDay } from '../lib/today';
 import { useStore } from '../store/store';
 import type { MealLog, Slot } from '../types';
@@ -60,6 +61,7 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
 
   const neededCount = data.shopping.filter((s) => s.status === 'needed').length;
   const billCount = billsDue(data.bills, today).length;
+  const off = offToday(data.staff, today);
   const budget = budgetState(summarize(data.expenses, monthOf(today)).total, settings.monthlyBudget);
   const budgetWarn = budget && budget.level !== 'ok' ? budget : null;
   const nextPlan = upcomingPlans(data.plans, today).find((p) => p.startDate > today);
@@ -128,7 +130,7 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
           </div>
           <div className="shrink-0">{actions}</div>
         </div>
-        {(billCount > 0 || neededCount > 0 || nextPlan || budgetWarn) && (
+        {(billCount > 0 || neededCount > 0 || nextPlan || budgetWarn || off.length > 0) && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {billCount > 0 && (
               <Chip onClick={() => onGo('money')} cls="bg-rose-50 text-rose-800 ring-rose-200">
@@ -145,6 +147,11 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
                 <ShoppingCart size={13} /> {neededCount} to buy
               </Chip>
             )}
+            {off.map((o) => (
+              <Chip key={o.staff.id} onClick={() => onGo('help')} cls="bg-stone-100 text-stone-700 ring-stone-200">
+                <UserRound size={13} /> {o.staff.name} {o.kind === 'half' ? 'half day today' : 'off today'}
+              </Chip>
+            ))}
             {nextPlan && (
               <Chip onClick={() => onGo('plans')} cls="bg-sky-50 text-sky-900 ring-sky-200">
                 <CalendarDays size={13} /> {nextPlan.title} · {countdown(nextPlan, today).toLowerCase()}

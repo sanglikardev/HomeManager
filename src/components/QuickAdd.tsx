@@ -1,8 +1,9 @@
-import { Bug, CalendarDays, IndianRupee, ShoppingCart, Wrench } from 'lucide-react';
+import { Bug, CalendarDays, IndianRupee, ShoppingCart, UserRound, Wrench } from 'lucide-react';
 import { useState } from 'react';
 import { useStore } from '../store/store';
 import type { Bucket } from '../types';
 import { FeedbackSheet } from './FeedbackSheet';
+import { QuickLeaveSheet } from './HelpView';
 import { ExpenseSheet } from './MoneySheets';
 import { PlanSheet } from './PlansView';
 import { useToast } from './toast';
@@ -10,7 +11,7 @@ import { Field, inputCls, PrimaryButton, Segmented, Sheet } from './ui';
 import { UpkeepSheet } from './UpkeepSheet';
 import type { Dest } from './ComingUp';
 
-type What = 'expense' | 'shopping' | 'upkeep' | 'plan' | 'feedback';
+type What = 'expense' | 'shopping' | 'upkeep' | 'plan' | 'leave' | 'feedback';
 
 // The one "+" button: add anything from any screen.
 export function QuickAdd({ onClose, onGo }: { onClose: () => void; onGo: (to: Dest) => void }) {
@@ -25,6 +26,7 @@ export function QuickAdd({ onClose, onGo }: { onClose: () => void; onGo: (to: De
   if (what === 'shopping') return <ShoppingAddSheet onClose={done} />;
   if (what === 'upkeep') return <UpkeepSheet task={null} onClose={done} />;
   if (what === 'plan') return <PlanSheet plan={null} onClose={done} onCreated={() => onGo('plans')} />;
+  if (what === 'leave') return <QuickLeaveSheet onClose={done} />;
   if (what === 'feedback') return <FeedbackSheet onClose={done} />;
 
   const options: { id: What; label: string; hint: string; icon: typeof Bug; cls: string }[] = [
@@ -33,6 +35,7 @@ export function QuickAdd({ onClose, onGo }: { onClose: () => void; onGo: (to: De
     { id: 'upkeep', label: 'Upkeep task', hint: 'Repeats or renews', icon: Wrench, cls: 'bg-rose-50 text-rose-700' },
     { id: 'plan', label: 'Plan or trip', hint: 'With a checklist', icon: CalendarDays, cls: 'bg-sky-50 text-sky-700' },
   ];
+  if (store.data.staff.some((s) => s.active)) options.push({ id: 'leave', label: 'Help day off', hint: 'Full or half day', icon: UserRound, cls: 'bg-stone-100 text-stone-700' });
   if (store.backend.mode === 'cloud') options.push({ id: 'feedback', label: 'Bug or idea', hint: 'For the app', icon: Bug, cls: 'bg-violet-50 text-violet-700' });
 
   return (
