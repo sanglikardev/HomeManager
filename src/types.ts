@@ -143,6 +143,7 @@ export interface HouseholdSettings {
   weeklyOrderDay: number; // 0..6
   cookAtHome: boolean;
   setupDone: boolean;
+  weeklyChores?: string[]; // 7 entries, 0 = Sunday: what to do each day, repeating every week
 }
 
 export interface Household {
@@ -201,11 +202,12 @@ export interface PlanTask {
 export interface Plan {
   id: string;
   title: string;
-  kind: 'trip' | 'event' | 'other';
+  kind: 'trip' | 'event' | 'other' | 'holiday';
   destination: string;
   international: boolean;
   startDate: string;
   endDate: string;
+  time?: string; // HH:MM, optional
   checklist: PlanTask[];
   notes: string;
   createdAt: string;

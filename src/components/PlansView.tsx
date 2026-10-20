@@ -5,6 +5,7 @@ import { uid } from '../lib/id';
 import { buildChecklist, countdown, dateRange, isOngoing, newsUrl, pastPlans, upcomingPlans, weatherUrl } from '../lib/plans';
 import { useStore } from '../store/store';
 import type { Plan, PlanTask } from '../types';
+import { MonthCalendar, WeeklyChores } from './CalendarSection';
 import { ConfirmButton, Field, inputCls, PrimaryButton, Segmented, Sheet, Toggle } from './ui';
 
 export function PlansView() {
@@ -25,6 +26,9 @@ export function PlansView() {
           <Plus size={16} /> Plan
         </button>
       </header>
+
+      <WeeklyChores />
+      <MonthCalendar onOpenPlan={(id) => setOpenId(id)} />
 
       {!upcoming.length && (
         <div className="rounded-2xl bg-white p-6 text-center ring-1 ring-stone-200">
@@ -226,6 +230,7 @@ function PlanSheet({ plan, onClose, onCreated }: { plan: Plan | null; onClose: (
             { value: 'trip', label: 'Trip' },
             { value: 'event', label: 'Event' },
             { value: 'other', label: 'Other' },
+            { value: 'holiday', label: 'Holiday' },
           ]}
         />
       </Field>
@@ -245,6 +250,11 @@ function PlanSheet({ plan, onClose, onCreated }: { plan: Plan | null; onClose: (
           <input id="plan-end" type="date" className={inputCls} value={draft.endDate} min={draft.startDate} onChange={(e) => set({ endDate: e.target.value })} />
         </Field>
       </div>
+      {draft.startDate === draft.endDate && (
+        <Field label="Time (optional)">
+          <input id="plan-time" type="time" className={inputCls} value={draft.time ?? ''} onChange={(e) => set({ time: e.target.value })} />
+        </Field>
+      )}
       <Field label="Notes">
         <textarea id="plan-notes" className={inputCls} rows={3} placeholder="Booking numbers, hotel address, people going…" value={draft.notes} onChange={(e) => set({ notes: e.target.value })} />
       </Field>

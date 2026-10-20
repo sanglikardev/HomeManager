@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Plan, UpkeepTask } from '../../types';
+import { choreFor, entriesOn, entryCountsByDay, monthGrid, weekChores, weekStart } from '../calendar';
 import { activeTrip, buildChecklist, dueTasks, holdPerishables } from '../plans';
 import { markDone, nextDue, sortByUrgency, upkeepStatus } from '../upkeep';
 
@@ -49,5 +50,29 @@ describe('plans', () => {
     const due = dueTasks([p], '2026-10-20', 7);
     expect(due.length).toBeGreaterThan(0);
     expect(due.every((d) => d.task.due! <= '2026-10-27')).toBe(true);
+  });
+});
+
+describe('calendar', () => {
+  const entry = (p: Partial<Plan>): Plan => ({ ...trip, kind: 'event', startDate: '2026-10-20', endDate: '2026-10-20', ...p });
+  it('lays a month out Monday first', () => {
+    const weeks = monthGrid(2026, 9); // October 2026 starts on a Thursday
+    expect(weeks[0].slice(0, 4)).toEqual([null, null, null, '2026-10-01']);
+    expect(weeks.flat().filter(Boolean)).toHaveLength(31);
+    expect(weeks.every((w) => w.length === 7)).toBe(true);
+  });
+  it('finds entries on a date, timed ones first, trips across their range', () => {
+    const plans = [entry({ id: 'b', title: 'B', time: '19:00' }), entry({ id: 'a', title: 'A', time: '09:00' }), entry({ id: 't', kind: 'trip', startDate: '2026-10-19', endDate: '2026-10-21' }), entry({ id: 'x', startDate: '2026-10-22', endDate: '2026-10-22' })];
+    expect(entriesOn(plans, '2026-10-20').map((p) => p.id)).toEqual(['a', 'b', 't']);
+    expect(entryCountsByDay(plans, 2026, 9).get('2026-10-21')).toBe(1);
+  });
+  it('repeats the weekly routine and starts weeks on Monday', () => {
+    const settings = { weeklyChores: ['Rest', 'Clean house', 'Clean house', 'Wash bedsheets', '', 'Water plants', ''] };
+    expect(weekStart('2026-10-20')).toBe('2026-10-19'); // Tuesday -> Monday
+    expect(choreFor(settings, '2026-10-20')).toBe('Clean house');
+    const week = weekChores(settings, '2026-10-25'); // Sunday belongs to the week starting Mon 19th
+    expect(week[0].date).toBe('2026-10-19');
+    expect(week[6]).toEqual({ date: '2026-10-25', chore: 'Rest' });
+    expect(choreFor({}, '2026-10-20')).toBe('');
   });
 });
