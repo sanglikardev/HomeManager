@@ -47,6 +47,8 @@ export function SetupWizard({ onDone, busy }: { onDone: (data: AppData) => void;
       meals: [],
       shopping: [],
       events: [],
+      upkeep: [],
+      plans: [],
     });
   };
 

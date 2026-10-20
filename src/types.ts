@@ -162,6 +162,55 @@ export const DEFAULT_SETTINGS: HouseholdSettings = {
   setupDone: false,
 };
 
+// ---------- home upkeep ----------
+
+export type UpkeepCategory = 'home' | 'vehicle' | 'insurance' | 'health' | 'other';
+export const UPKEEP_CATEGORIES: { value: UpkeepCategory; label: string }[] = [
+  { value: 'home', label: 'Home' },
+  { value: 'vehicle', label: 'Vehicles' },
+  { value: 'insurance', label: 'Insurance' },
+  { value: 'health', label: 'Health' },
+  { value: 'other', label: 'Other' },
+];
+
+// recurring: done every intervalDays (filter change, bedsheets).
+// renewal: has an expiry date to renew before (insurance, PUC).
+export interface UpkeepTask {
+  id: string;
+  name: string;
+  category: UpkeepCategory;
+  kind: 'recurring' | 'renewal';
+  intervalDays: number | null;
+  lastDone: string | null; // YYYY-MM-DD
+  dueDate: string | null; // YYYY-MM-DD, renewals only
+  remindDays: number; // start reminding this many days before
+  details: Record<string, string>; // policy number, provider, vehicle number...
+  history: string[]; // dates it was done or renewed, newest first
+  notes: string;
+}
+
+// ---------- plans and trips ----------
+
+export interface PlanTask {
+  id: string;
+  text: string;
+  due: string | null; // YYYY-MM-DD
+  done: boolean;
+}
+
+export interface Plan {
+  id: string;
+  title: string;
+  kind: 'trip' | 'event' | 'other';
+  destination: string;
+  international: boolean;
+  startDate: string;
+  endDate: string;
+  checklist: PlanTask[];
+  notes: string;
+  createdAt: string;
+}
+
 export interface AppData {
   household: Household;
   items: Item[];
@@ -169,4 +218,6 @@ export interface AppData {
   meals: MealLog[];
   shopping: ShoppingEntry[];
   events: PantryEvent[];
+  upkeep: UpkeepTask[];
+  plans: Plan[];
 }

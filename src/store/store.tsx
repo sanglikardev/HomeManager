@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { localDate } from '../lib/dates';
 import { uid } from '../lib/id';
 import { effectiveLevel, setLevel, syncShoppingList } from '../lib/pantry';
+import { holdPerishables } from '../lib/plans';
 import type {
   AppData,
   Bucket,
@@ -12,8 +13,10 @@ import type {
   MealKind,
   MealLog,
   PantryEvent,
+  Plan,
   ShoppingEntry,
   Slot,
+  UpkeepTask,
 } from '../types';
 import type { Backend, TableName } from './backend';
 
@@ -24,6 +27,8 @@ interface Change {
   meals?: MealLog[];
   shopping?: ShoppingEntry[];
   events?: PantryEvent[];
+  upkeep?: UpkeepTask[];
+  plans?: Plan[];
   removed?: Partial<Record<TableName, string[]>>;
 }
 
@@ -41,13 +46,15 @@ function applyChange(data: AppData, c: Change): AppData {
   next.meals = merge(data.meals, c.meals, c.removed?.meals);
   next.shopping = merge(data.shopping, c.shopping, c.removed?.shopping);
   next.events = merge(data.events, c.events, c.removed?.events);
+  next.upkeep = merge(data.upkeep, c.upkeep, c.removed?.upkeep);
+  next.plans = merge(data.plans, c.plans, c.removed?.plans);
   return next;
 }
 
 // Folds the shopping list sync into a change, against the state after it.
 function withShoppingSync(data: AppData, c: Change, now: Date): Change {
   const after = applyChange(data, c);
-  const { add, remove } = syncShoppingList(after.items, after.shopping, data.household.settings, now);
+  const { add, remove } = syncShoppingList(after.items, after.shopping, data.household.settings, now, holdPerishables(after.plans, now));
   if (!add.length && !remove.length) return c;
   return {
     ...c,
@@ -78,6 +85,11 @@ export interface Store {
   deleteItem(id: string): void;
   saveDish(dish: Dish): void;
   deleteDish(id: string): void;
+  saveUpkeep(task: UpkeepTask): void;
+  deleteUpkeep(id: string): void;
+  saveUpkeepMany(tasks: UpkeepTask[]): void;
+  savePlan(plan: Plan): void;
+  deletePlan(id: string): void;
   updateHousehold(patch: Partial<Omit<Household, 'settings'>> & { settings?: Partial<HouseholdSettings> }): void;
 }
 
@@ -105,7 +117,7 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
       // Writes go out one batch at a time, in order.
       queue.current = queue.current
         .then(async () => {
-          const tables: TableName[] = ['items', 'dishes', 'meals', 'shopping', 'events'];
+          const tables: TableName[] = ['items', 'dishes', 'meals', 'shopping', 'events', 'upkeep', 'plans'];
           for (const t of tables) {
             const rows = c[t] as object[] | undefined;
             if (rows?.length) await backend.upsert(t, rows);
@@ -327,6 +339,13 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
       saveDish: (dish) => commit(() => ({ dishes: [dish] }), false),
 
       deleteDish: (id) => commit(() => ({ removed: { dishes: [id] } }), false),
+
+      saveUpkeep: (task) => commit(() => ({ upkeep: [task] }), false),
+      saveUpkeepMany: (tasks) => commit(() => ({ upkeep: tasks }), false),
+      deleteUpkeep: (id) => commit(() => ({ removed: { upkeep: [id] } }), false),
+      // Plans can hold perishables back from the shopping list, so re-sync.
+      savePlan: (plan) => commit(() => ({ plans: [plan] })),
+      deletePlan: (id) => commit(() => ({ removed: { plans: [id] } })),
 
       updateHousehold: (patch) => {
         const d = dataRef.current;

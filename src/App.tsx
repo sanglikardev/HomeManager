@@ -1,17 +1,21 @@
-import { BookOpen, CalendarCheck, Package, Settings, ShoppingCart, Users } from 'lucide-react';
+import { CalendarCheck, CalendarDays, ChefHat, Settings, ShoppingCart, Users, Wrench } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DishesView } from './components/DishesView';
 import { LoginScreen } from './components/LoginScreen';
 import { MoreView } from './components/MoreView';
 import { PantryView } from './components/PantryView';
+import { PlansView } from './components/PlansView';
+import { UpkeepView } from './components/UpkeepView';
 import { SetupWizard } from './components/SetupWizard';
 import { ShoppingView } from './components/ShoppingView';
 import { TodayView } from './components/TodayView';
 import { ToastProvider } from './components/toast';
-import { inputCls, PrimaryButton, SecondaryButton } from './components/ui';
+import { inputCls, PrimaryButton, SecondaryButton, Segmented } from './components/ui';
 import { CloudBackend, getToken, LocalBackend, signOut, supabaseConfigured, type Backend } from './store/backend';
 import { StoreProvider, useStore } from './store/store';
 import type { AppData } from './types';
+import { localDate } from './lib/dates';
+import { upkeepStatus } from './lib/upkeep';
 
 type Boot =
   | { state: 'loading' }
@@ -152,24 +156,37 @@ function JoinOrCreate({ backend, onCreate, onJoined }: { backend: Backend; onCre
   );
 }
 
-type Tab = 'today' | 'pantry' | 'shopping' | 'dishes' | 'more';
+type Tab = 'today' | 'kitchen' | 'shopping' | 'upkeep' | 'plans' | 'more';
+const TABS: Tab[] = ['today', 'kitchen', 'shopping', 'upkeep', 'plans', 'more'];
 
 function Shell() {
   const store = useStore();
-  const [tab, setTab] = useState<Tab>(() => (location.hash.slice(1) as Tab) || 'today');
+  const [tab, setTab] = useState<Tab>(() => {
+    const h = location.hash.slice(1);
+    if (h === 'pantry' || h === 'dishes') return 'kitchen';
+    return TABS.includes(h as Tab) ? (h as Tab) : 'today';
+  });
+  const [kitchen, setKitchen] = useState<'pantry' | 'dishes'>(() => (location.hash === '#dishes' ? 'dishes' : 'pantry'));
   useEffect(() => {
     history.replaceState(null, '', `#${tab}`);
     window.scrollTo(0, 0);
   }, [tab]);
 
+  const today = localDate();
   const needed = store.data.shopping.filter((s) => s.status === 'needed').length;
-  const tabs: { id: Tab; label: string; icon: typeof Package; badge?: number }[] = [
+  const dueUpkeep = store.data.upkeep.filter((t) => upkeepStatus(t, today) === 'overdue').length;
+  const tabs: { id: Tab; label: string; icon: typeof Settings; badge?: number; badgeCls?: string }[] = [
     { id: 'today', label: 'Today', icon: CalendarCheck },
-    { id: 'pantry', label: 'Pantry', icon: Package },
+    { id: 'kitchen', label: 'Kitchen', icon: ChefHat },
     { id: 'shopping', label: 'Shopping', icon: ShoppingCart, badge: needed },
-    { id: 'dishes', label: 'Dishes', icon: BookOpen },
-    { id: 'more', label: 'Home', icon: Settings },
+    { id: 'upkeep', label: 'Upkeep', icon: Wrench, badge: dueUpkeep, badgeCls: 'bg-rose-500' },
+    { id: 'plans', label: 'Plans', icon: CalendarDays },
   ];
+  const gear = (
+    <button onClick={() => setTab('more')} aria-label="Home settings" className="rounded-xl p-2 text-stone-500 ring-1 ring-stone-200 bg-white">
+      <Settings size={18} />
+    </button>
+  );
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg">
@@ -179,11 +196,26 @@ function Shell() {
         </button>
       )}
       <main className="px-4 pb-28 pt-6 pt-safe">
-        {tab === 'today' && <TodayView onOpenShopping={() => setTab('shopping')} />}
-        {tab === 'pantry' && <PantryView />}
+        {tab === 'today' && <TodayView onOpenShopping={() => setTab('shopping')} onGo={setTab} settingsButton={gear} />}
+        {tab === 'kitchen' && (
+          <>
+            <div className="mb-4">
+              <Segmented
+                value={kitchen}
+                onChange={setKitchen}
+                options={[
+                  { value: 'pantry', label: 'Pantry' },
+                  { value: 'dishes', label: 'Dishes' },
+                ]}
+              />
+            </div>
+            {kitchen === 'pantry' ? <PantryView /> : <DishesView />}
+          </>
+        )}
         {tab === 'shopping' && <ShoppingView />}
-        {tab === 'dishes' && <DishesView />}
-        {tab === 'more' && <MoreView />}
+        {tab === 'upkeep' && <UpkeepView />}
+        {tab === 'plans' && <PlansView />}
+        {tab === 'more' && <MoreView onBack={() => setTab('today')} />}
       </main>
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 pb-safe backdrop-blur">
         <div className="mx-auto grid max-w-lg grid-cols-5">
@@ -194,7 +226,7 @@ function Shell() {
               <button key={t.id} onClick={() => setTab(t.id)} className={`relative flex flex-col items-center gap-0.5 pb-1 pt-2 text-[11px] font-medium ${on ? 'text-teal-700' : 'text-stone-500'}`}>
                 <Icon size={22} strokeWidth={on ? 2.4 : 1.8} />
                 {t.label}
-                {!!t.badge && <span className="absolute right-[22%] top-1 min-w-[18px] rounded-full bg-amber-500 px-1 text-[10px] font-bold leading-[18px] text-white">{t.badge}</span>}
+                {!!t.badge && <span className={`absolute right-[22%] top-1 min-w-[18px] rounded-full ${t.badgeCls ?? 'bg-amber-500'} px-1 text-[10px] font-bold leading-[18px] text-white`}>{t.badge}</span>}
               </button>
             );
           })}

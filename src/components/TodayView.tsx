@@ -1,17 +1,19 @@
 import { Check, ChefHat, Send, Clock, HelpCircle, Plus, RotateCcw, ShoppingCart, Sparkles, Undo2, UtensilsCrossed } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { addDays, friendlyDate, localDate, parseLocalDate, WEEKDAYS } from '../lib/dates';
+import { activeTrip } from '../lib/plans';
 import { pickQuestions, type Question } from '../lib/questions';
 import { suggest, type Suggestion } from '../lib/suggest';
 import { useStore } from '../store/store';
 import type { MealLog, Slot } from '../types';
+import { AwayCard, ComingUpCard, type Go } from './ComingUp';
 import { MealPickerSheet } from './MealPickerSheet';
 import { useToast } from './toast';
 import { LevelPicker, Segmented } from './ui';
 
 const SLOT_LABEL: Record<Slot, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
 
-export function TodayView({ onOpenShopping }: { onOpenShopping: () => void }) {
+export function TodayView({ onOpenShopping, onGo, settingsButton }: { onOpenShopping: () => void; onGo: Go; settingsButton?: React.ReactNode }) {
   const store = useStore();
   const { data } = store;
   const toast = useToast();
@@ -56,6 +58,7 @@ export function TodayView({ onOpenShopping }: { onOpenShopping: () => void }) {
     [data.meals, date],
   );
 
+  const away = activeTrip(data.plans, date);
   const neededCount = data.shopping.filter((s) => s.status === 'needed').length;
 
   const cook = (slot: Slot, s: Suggestion) => {
@@ -81,7 +84,8 @@ export function TodayView({ onOpenShopping }: { onOpenShopping: () => void }) {
           </h1>
           <p className="text-sm text-stone-500">{WEEKDAYS[parseLocalDate(date).getDay()]}{settings.vegOnlyDays.includes(parseLocalDate(date).getDay()) ? ' · veg only' : ''}</p>
         </div>
-        <div className="w-44">
+        <div className="flex w-52 items-center gap-2">
+          <div className="flex-1">
           <Segmented
             value={day}
             onChange={setDay}
@@ -90,12 +94,16 @@ export function TodayView({ onOpenShopping }: { onOpenShopping: () => void }) {
               { value: 'tomorrow', label: 'Tomorrow' },
             ]}
           />
+          </div>
+          {settingsButton}
         </div>
       </header>
 
-      {day === 'today' && questions.length > 0 && <QuestionsCard questions={questions} />}
+      {away && <AwayCard date={date} />}
 
-      {settings.slots.map((slot) => (
+      {!away && day === 'today' && questions.length > 0 && <QuestionsCard questions={questions} />}
+
+      {!away && settings.slots.map((slot) => (
         <section key={slot}>
           <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold uppercase tracking-wide text-stone-500">{SLOT_LABEL[slot]}</h2>
           {logged[slot] ? (
@@ -114,7 +122,7 @@ export function TodayView({ onOpenShopping }: { onOpenShopping: () => void }) {
             </div>
           ) : (
             <div className="rounded-2xl border border-dashed border-stone-300 bg-white p-4 text-sm text-stone-500">
-              No {SLOT_LABEL[slot].toLowerCase()} dishes in your rotation yet. Add some in the Dishes tab.
+              No {SLOT_LABEL[slot].toLowerCase()} dishes in your rotation yet. Add some under Kitchen, Dishes.
               {day === 'today' && (
                 <button onClick={() => setPicker(slot)} className="mt-2 block font-medium text-teal-700">
                   Log what you ate
@@ -141,6 +149,8 @@ export function TodayView({ onOpenShopping }: { onOpenShopping: () => void }) {
           <Send size={16} /> Send the menu to the cook
         </a>
       )}
+
+      <ComingUpCard today={today} onGo={onGo} />
 
       {neededCount > 0 && (
         <button onClick={onOpenShopping} className="flex w-full items-center gap-3 rounded-2xl bg-amber-50 p-4 text-left ring-1 ring-amber-200">

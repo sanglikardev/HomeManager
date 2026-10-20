@@ -132,6 +132,7 @@ export function syncShoppingList(
   list: ShoppingEntry[],
   settings: HouseholdSettings,
   now: Date = new Date(),
+  holdPerishables = false, // away or leaving soon: don't restock fresh food
 ): { add: ShoppingEntry[]; remove: string[] } {
   const needed = list.filter((e) => e.status === 'needed');
   const onList = new Set(needed.map((e) => e.itemId).filter(Boolean));
@@ -139,6 +140,7 @@ export function syncShoppingList(
   const remove: string[] = [];
 
   for (const item of items) {
+    if (holdPerishables && isPerishable(item)) continue;
     if (!onList.has(item.id) && needsReorder(item, settings, now)) {
       add.push({
         id: uid(),

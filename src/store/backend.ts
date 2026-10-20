@@ -8,7 +8,7 @@ import type { AppData, Household } from '../types';
 // Cloud sign-in is HomeManager's own username + password (see
 // supabase/migrations/0002_username_login.sql), not Supabase Auth.
 
-export type TableName = 'items' | 'dishes' | 'meals' | 'shopping' | 'events';
+export type TableName = 'items' | 'dishes' | 'meals' | 'shopping' | 'events' | 'upkeep' | 'plans';
 
 const TABLES: Record<TableName, string> = {
   items: 'hm_items',
@@ -16,6 +16,8 @@ const TABLES: Record<TableName, string> = {
   meals: 'hm_meals',
   shopping: 'hm_shopping',
   events: 'hm_pantry_events',
+  upkeep: 'hm_upkeep',
+  plans: 'hm_plans',
 };
 
 export interface Backend {
@@ -41,6 +43,11 @@ export class LocalBackend implements Backend {
     try {
       const raw = localStorage.getItem(LOCAL_KEY);
       this.data = raw ? (JSON.parse(raw) as AppData) : null;
+      // Data saved before upkeep and plans existed.
+      if (this.data) {
+        this.data.upkeep ??= [];
+        this.data.plans ??= [];
+      }
     } catch {
       this.data = null;
     }
@@ -190,6 +197,8 @@ export class CloudBackend implements Backend {
       meals: list('meals'),
       shopping: list('shopping'),
       events: list('events'),
+      upkeep: list('upkeep'),
+      plans: list('plans'),
     };
   }
 
