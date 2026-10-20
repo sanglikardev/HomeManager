@@ -1,4 +1,6 @@
--- HomeManager schema.
+-- HomeManager schema. Applied to the Samarth project (akrkcyeivtpnqlowzsvb)
+-- on 2026-10-20 as migrations homemanager_0001_tables and
+-- homemanager_0002_functions.
 --
 -- For now this lives in the Samarth Supabase project, so every object is
 -- prefixed hm_ and nothing here reads or changes Samarth's tables. To move
@@ -157,8 +159,12 @@ begin
 end;
 $$;
 
-revoke all on function hm_create_household(text, jsonb) from anon;
-revoke all on function hm_join_household(text) from anon;
+revoke all on function hm_create_household(text, jsonb) from anon, public;
+revoke all on function hm_join_household(text) from anon, public;
+revoke all on function hm_is_member(uuid) from anon, public;
+grant execute on function hm_create_household(text, jsonb) to authenticated;
+grant execute on function hm_join_household(text) to authenticated;
+grant execute on function hm_is_member(uuid) to authenticated;
 
 alter table hm_households enable row level security;
 alter table hm_members enable row level security;
