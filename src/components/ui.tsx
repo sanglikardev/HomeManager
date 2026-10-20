@@ -1,5 +1,5 @@
 import { X } from 'lucide-react';
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { LEVELS, levelName, type LevelName } from '../lib/pantry';
 
 // Bottom sheet: the phone-friendly modal used for every edit form.
@@ -135,5 +135,25 @@ export function Segmented<T extends string | number>({ options, value, onChange 
         </button>
       ))}
     </div>
+  );
+}
+
+// Two-tap delete: the first tap arms it, the second within 3 s confirms.
+// Used instead of confirm(), which some embedded browsers block.
+export function ConfirmButton({ label, armedLabel, onConfirm, className = '', children }: { label: string; armedLabel: string; onConfirm: () => void; className?: string; children?: ReactNode }) {
+  const [armed, setArmed] = useState(false);
+  useEffect(() => {
+    if (!armed) return;
+    const t = setTimeout(() => setArmed(false), 3000);
+    return () => clearTimeout(t);
+  }, [armed]);
+  return (
+    <button
+      onClick={() => (armed ? onConfirm() : setArmed(true))}
+      className={`${className} ${armed ? 'bg-rose-600 text-white' : ''}`}
+      aria-label={armed ? armedLabel : label}
+    >
+      {armed ? <span className="px-1 text-sm font-semibold">{armedLabel}</span> : (children ?? label)}
+    </button>
   );
 }

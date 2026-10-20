@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { uid } from '../lib/id';
 import { useStore } from '../store/store';
 import { SLOTS, type Dish, type DishTag } from '../types';
-import { Field, inputCls, PrimaryButton, Sheet, Toggle } from './ui';
+import { ConfirmButton, Field, inputCls, PrimaryButton, Sheet, Toggle } from './ui';
 
 const TAG_CHOICES: DishTag[] = ['dal', 'sabzi', 'rice', 'roti', 'paneer', 'egg', 'chicken', 'fish', 'mutton', 'light', 'heavy', 'quick', 'special', 'fasting', 'south-indian', 'chinese', 'continental'];
 
@@ -40,18 +40,17 @@ export function DishSheet({ dish, onClose }: { dish: Dish | null; onClose: () =>
       footer={
         <div className="flex gap-2">
           {dish && (
-            <button
-              onClick={() => {
-                if (confirm(`Delete ${dish.name}?`)) {
-                  store.deleteDish(dish.id);
-                  onClose();
-                }
+            <ConfirmButton
+              label="Delete dish"
+              armedLabel="Tap again to delete"
+              onConfirm={() => {
+                store.deleteDish(dish.id);
+                onClose();
               }}
               className="rounded-2xl border border-rose-200 px-4 text-rose-600"
-              aria-label="Delete dish"
             >
               <Trash2 size={18} />
-            </button>
+            </ConfirmButton>
           )}
           <PrimaryButton
             onClick={() => {

@@ -126,18 +126,20 @@ export function TodayView({ onOpenShopping }: { onOpenShopping: () => void }) {
       ))}
 
       {settings.cookAtHome && settings.slots.some((s) => logged[s]?.kind === 'cooked') && (
-        <button
-          onClick={() => {
-            const lines = settings.slots
-              .filter((s) => logged[s]?.kind === 'cooked')
-              .map((s) => `${SLOT_LABEL[s]}: ${logged[s]!.label} (for ${logged[s]!.servings})`);
-            const text = `Menu for ${day === 'today' ? 'today' : 'tomorrow'}\n${lines.join('\n')}`;
-            window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-          }}
+        <a
+          href={`https://wa.me/?text=${encodeURIComponent(
+            `Menu for ${day === 'today' ? 'today' : 'tomorrow'}\n` +
+              settings.slots
+                .filter((s) => logged[s]?.kind === 'cooked')
+                .map((s) => `${SLOT_LABEL[s]}: ${logged[s]!.label} (for ${logged[s]!.servings})`)
+                .join('\n'),
+          )}`}
+          target="_blank"
+          rel="noreferrer"
           className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-3 text-sm font-semibold text-emerald-700 ring-1 ring-emerald-200"
         >
           <Send size={16} /> Send the menu to the cook
-        </button>
+        </a>
       )}
 
       {neededCount > 0 && (

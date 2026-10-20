@@ -3,7 +3,7 @@ import { useState } from 'react';
 import { uid } from '../lib/id';
 import { useStore } from '../store/store';
 import { CATEGORIES, type Category, type Item } from '../types';
-import { Field, inputCls, PrimaryButton, Segmented, Sheet, Toggle } from './ui';
+import { ConfirmButton, Field, inputCls, PrimaryButton, Segmented, Sheet, Toggle } from './ui';
 
 // Daily use presets, in plain words. Values are the share of a full pack per day.
 const USE_PRESETS: { label: string; value: number }[] = [
@@ -49,18 +49,17 @@ export function ItemSheet({ item, onClose }: { item: Item | null; onClose: () =>
       footer={
         <div className="flex gap-2">
           {item && (
-            <button
-              onClick={() => {
-                if (confirm(`Remove ${item.name}${usedIn ? ` (used in ${usedIn} dishes)` : ''}?`)) {
-                  store.deleteItem(item.id);
-                  onClose();
-                }
+            <ConfirmButton
+              label="Delete item"
+              armedLabel={usedIn ? `Remove from ${usedIn} dishes too?` : 'Tap again to remove'}
+              onConfirm={() => {
+                store.deleteItem(item.id);
+                onClose();
               }}
               className="rounded-2xl border border-rose-200 px-4 text-rose-600"
-              aria-label="Delete item"
             >
               <Trash2 size={18} />
-            </button>
+            </ConfirmButton>
           )}
           <PrimaryButton onClick={save} disabled={!draft.name.trim()} className="flex-1">
             Save

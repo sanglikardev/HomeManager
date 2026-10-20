@@ -4,7 +4,7 @@ import { resetLocalData, supabase } from '../store/backend';
 import { useStore } from '../store/store';
 import { HouseholdForm } from './HouseholdForm';
 import { useToast } from './toast';
-import { Field, inputCls, Pill } from './ui';
+import { ConfirmButton, Field, inputCls, Pill } from './ui';
 
 export function MoreView() {
   const store = useStore();
@@ -79,17 +79,15 @@ export function MoreView() {
           <LogOut size={18} /> Sign out
         </button>
       ) : (
-        <button
-          onClick={() => {
-            if (confirm('Erase everything on this device and start setup again?')) {
-              resetLocalData();
-              window.location.reload();
-            }
+        <ConfirmButton
+          label="Start over (erase this device's data)"
+          armedLabel="Tap again to erase everything"
+          onConfirm={() => {
+            resetLocalData();
+            window.location.reload();
           }}
           className="w-full rounded-2xl py-3 text-sm text-rose-600"
-        >
-          Start over (erase this device's data)
-        </button>
+        />
       )}
     </div>
   );

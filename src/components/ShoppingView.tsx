@@ -40,19 +40,6 @@ export function ShoppingView() {
     return `Shopping list\n\n${parts.join('\n\n')}`;
   };
 
-  const share = async () => {
-    const text = listText();
-    if (navigator.share) {
-      try {
-        await navigator.share({ text });
-        return;
-      } catch {
-        // cancelled: fall through to WhatsApp
-      }
-    }
-    window.open(`https://wa.me/?text=${encodeURIComponent(text)}`, '_blank');
-  };
-
   const copy = async () => {
     try {
       await navigator.clipboard.writeText(listText());
@@ -111,9 +98,14 @@ export function ShoppingView() {
 
       {!empty && (
         <div className="flex gap-2">
-          <button onClick={share} className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 font-semibold text-white">
-            <Share2 size={18} /> Share list
-          </button>
+          <a
+            href={`https://wa.me/?text=${encodeURIComponent(listText())}`}
+            target="_blank"
+            rel="noreferrer"
+            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 font-semibold text-white"
+          >
+            <Share2 size={18} /> Send on WhatsApp
+          </a>
           <button onClick={copy} className="flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-medium text-stone-700 ring-1 ring-stone-200">
             <Copy size={18} /> Copy
           </button>
