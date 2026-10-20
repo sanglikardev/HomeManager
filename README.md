@@ -40,13 +40,10 @@ function is prefixed `hm_` and nothing touches Samarth's tables.
 
 1. Supabase dashboard → SQL editor → paste and run
    `supabase/migrations/0001_homemanager.sql`.
-2. Authentication → Sign In / Providers → make sure **Email** is enabled.
-3. Authentication → Emails → "Magic Link" template: add `{{ .Token }}` so the
-   email contains the 6-digit code (the app accepts the code or the link).
-4. Authentication → URL Configuration → add the Pages URL (for example
-   `https://home-manager.pages.dev`) to **Redirect URLs**. Leave Samarth's
-   settings as they are.
-5. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (see `.env.example`).
+2. Sign-in is email + password (Supabase Auth). No dashboard settings are
+   needed. If "Confirm email" is on, the confirmation link may open the
+   project's Site URL (Samarth); the account is confirmed either way.
+3. Set `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (see `.env.example`).
 
 ## Deploy (Cloudflare Workers)
 

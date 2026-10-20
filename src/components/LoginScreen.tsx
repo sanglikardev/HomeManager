@@ -1,32 +1,37 @@
-import { Home, Mail } from 'lucide-react';
+import { Home } from 'lucide-react';
 import { useState } from 'react';
 import { supabase } from '../store/backend';
-import { Field, inputCls, PrimaryButton } from './ui';
+import { Field, inputCls, PrimaryButton, Segmented } from './ui';
 
-// Email sign-in: Supabase sends a 6-digit code (and a link). Typing the code
-// keeps you inside the installed app, where a link would open the browser.
+// Email + password sign-in. Each family member makes their own account,
+// then creates or joins the household.
 export function LoginScreen() {
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
-  const [code, setCode] = useState('');
-  const [sent, setSent] = useState(false);
+  const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
-  const send = async () => {
+  const submit = async () => {
     setBusy(true);
     setError(null);
-    const { error: e } = await supabase().auth.signInWithOtp({ email: email.trim(), options: { emailRedirectTo: window.location.origin } });
+    setNotice(null);
+    const auth = supabase().auth;
+    const creds = { email: email.trim(), password };
+    if (mode === 'signin') {
+      const { error: e } = await auth.signInWithPassword(creds);
+      if (e) setError(e.message === 'Invalid login credentials' ? 'Wrong email or password.' : e.message);
+    } else {
+      const { data, error: e } = await auth.signUp(creds);
+      if (e) setError(e.message);
+      else if (!data.session) {
+        // Supabase wants the address confirmed first.
+        setNotice('Account created. Open the confirmation email and tap its link (it may open a different page, that is fine), then come back here and sign in.');
+        setMode('signin');
+      }
+    }
     setBusy(false);
-    if (e) setError(e.message);
-    else setSent(true);
-  };
-
-  const verify = async () => {
-    setBusy(true);
-    setError(null);
-    const { error: e } = await supabase().auth.verifyOtp({ email: email.trim(), token: code.trim(), type: 'email' });
-    setBusy(false);
-    if (e) setError(e.message);
   };
 
   return (
@@ -35,43 +40,48 @@ export function LoginScreen() {
         <Home size={28} />
       </div>
       <h1 className="text-3xl font-bold text-stone-900">HomeManager</h1>
-      <p className="mb-8 mt-1 text-stone-600">Meals, pantry and groceries, off your mind.</p>
+      <p className="mb-6 mt-1 text-stone-600">Meals, pantry and groceries, off your mind.</p>
 
-      {!sent ? (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            send();
+      <div className="mb-5">
+        <Segmented
+          value={mode}
+          onChange={(m) => {
+            setMode(m);
+            setError(null);
           }}
-        >
-          <Field label="Your email">
-            <input className={inputCls} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
-          </Field>
-          <PrimaryButton type="submit" disabled={busy || !email.includes('@')} className="flex w-full items-center justify-center gap-2">
-            <Mail size={18} /> {busy ? 'Sending…' : 'Email me a sign-in code'}
-          </PrimaryButton>
-        </form>
-      ) : (
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            verify();
-          }}
-        >
-          <p className="mb-4 text-sm text-stone-600">
-            Sent to <b>{email}</b>. Type the code from the email, or just tap the link in it.
-          </p>
-          <Field label="Code">
-            <input className={`${inputCls} tracking-[0.4em]`} inputMode="numeric" autoComplete="one-time-code" maxLength={8} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))} />
-          </Field>
-          <PrimaryButton type="submit" disabled={busy || code.length < 6} className="w-full">
-            {busy ? 'Checking…' : 'Sign in'}
-          </PrimaryButton>
-          <button type="button" onClick={() => setSent(false)} className="mt-3 w-full text-sm text-stone-500">
-            Use a different email
-          </button>
-        </form>
-      )}
+          options={[
+            { value: 'signin', label: 'Sign in' },
+            { value: 'signup', label: 'Create account' },
+          ]}
+        />
+      </div>
+
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          submit();
+        }}
+      >
+        <Field label="Email">
+          <input id="email" className={inputCls} type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} />
+        </Field>
+        <Field label="Password" hint={mode === 'signup' ? 'At least 6 characters.' : undefined}>
+          <input
+            id="password"
+            className={inputCls}
+            type="password"
+            autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+            required
+            minLength={6}
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+          />
+        </Field>
+        <PrimaryButton type="submit" disabled={busy || !email.includes('@') || password.length < 6} className="w-full">
+          {busy ? 'Please wait…' : mode === 'signin' ? 'Sign in' : 'Create account'}
+        </PrimaryButton>
+      </form>
+      {notice && <p className="mt-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-800">{notice}</p>}
       {error && <p className="mt-4 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
     </div>
   );

@@ -29,7 +29,7 @@ export function MoreView() {
           <h2 className="mb-1 flex items-center gap-2 font-semibold">
             <Users size={18} className="text-teal-700" /> Invite family
           </h2>
-          <p className="mb-3 text-sm text-stone-600">They open the app, sign in with their email, choose "Join my family" and type this code.</p>
+          <p className="mb-3 text-sm text-stone-600">They open the app, create an account, choose "Join my family" and type this code.</p>
           <div className="flex items-center gap-2">
             <span className="flex-1 rounded-xl bg-stone-100 py-3 text-center font-mono text-2xl font-semibold tracking-[0.3em]">{household.inviteCode}</span>
             <button
