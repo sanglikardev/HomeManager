@@ -1,5 +1,6 @@
 import { Check, ChefHat, Send, Clock, HelpCircle, Plus, RotateCcw, ShoppingCart, Sparkles, Undo2, UtensilsCrossed } from 'lucide-react';
 import { useMemo, useState } from 'react';
+import { routineOn, withMark, type RoutineItem } from '../lib/calendar';
 import { addDays, friendlyDate, localDate, parseLocalDate, WEEKDAYS } from '../lib/dates';
 import { activeTrip } from '../lib/plans';
 import { pickQuestions, type Question } from '../lib/questions';
@@ -57,6 +58,10 @@ export function TodayView({ onOpenShopping, onGo, settingsButton }: { onOpenShop
         .sort((a, b) => (a.date === b.date ? slotOrder(b.slot) - slotOrder(a.slot) : b.date.localeCompare(a.date))),
     [data.meals, date],
   );
+
+  const dayTasks = useMemo(() => routineOn(settings, data.upkeep, date), [settings, data.upkeep, date]);
+  const toggleTask = (item: RoutineItem) =>
+    store.updateHousehold({ settings: { weekState: withMark(settings.weekState, item.key, item.origDate, { done: !item.done }, today) } });
 
   const away = activeTrip(data.plans, date);
   const neededCount = data.shopping.filter((s) => s.status === 'needed').length;
@@ -132,6 +137,22 @@ export function TodayView({ onOpenShopping, onGo, settingsButton }: { onOpenShop
           )}
         </section>
       ))}
+
+      {!away && dayTasks.length > 0 && (
+        <section>
+          <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">{day === 'today' ? "Today's tasks" : "Tomorrow's tasks"}</h2>
+          <div className="divide-y divide-stone-100 overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
+            {dayTasks.map((t) => (
+              <button key={`${t.key}@${t.origDate}`} onClick={() => toggleTask(t)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+                <span className={`flex h-6 w-6 items-center justify-center rounded-full border ${t.done ? 'border-emerald-600 bg-emerald-600 text-white' : 'border-stone-300'}`}>
+                  {t.done && <Check size={14} />}
+                </span>
+                <span className={`flex-1 text-sm ${t.done ? 'text-stone-400 line-through' : 'text-stone-900'}`}>{t.label}</span>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {settings.cookAtHome && settings.slots.some((s) => logged[s]?.kind === 'cooked') && (
         <a

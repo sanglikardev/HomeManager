@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Plan, UpkeepTask } from '../../types';
-import { choreFor, entriesOn, entryCountsByDay, monthGrid, routineWeek, weekChores, weekStart, withMark } from '../calendar';
+import { choreFor, entriesOn, entryCountsByDay, monthGrid, routineOn, routineWeek, weekChores, weekStart, withMark } from '../calendar';
 import { activeTrip, buildChecklist, dueTasks, holdPerishables } from '../plans';
 import { markDone, nextDue, unmarkDone, sortByUrgency, upkeepStatus } from '../upkeep';
 
@@ -94,6 +94,12 @@ describe('weekly routine with upkeep', () => {
     expect(week[2][0]).toMatchObject({ label: 'Sweep the house', moved: true, origDate: '2026-10-19' });
     expect(week[3][0].done).toBe(true);
     expect(routineWeek({ ...settings, weekState: state }, [sweep], '2026-10-26')[0].some((i) => i.moved || i.done)).toBe(false);
+  });
+  it('lists one day of the routine', () => {
+    const state = withMark(undefined, 'c:1', '2026-10-19', { done: true }, '2026-10-20');
+    const items = routineOn({ ...settings, weekState: state }, [sweep], '2026-10-19');
+    expect(items.map((i) => [i.label, i.done])).toEqual([['Clean house', true], ['Sweep the house', false]]);
+    expect(routineOn(settings, [sweep], '2026-10-20')).toEqual([]);
   });
   it('drops marks that are reset or very old', () => {
     let state = withMark(undefined, 'c:1', '2026-10-19', { done: true }, '2026-10-20');

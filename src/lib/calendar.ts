@@ -86,6 +86,16 @@ export function routineWeek(
   return days;
 }
 
+// The routine items that show on one date (moves and done marks applied).
+export function routineOn(
+  settings: Pick<HouseholdSettings, 'weeklyChores' | 'weekState'>,
+  upkeep: UpkeepTask[],
+  date: string,
+): RoutineItem[] {
+  const start = weekStart(date);
+  return routineWeek(settings, upkeep, start)[dateDiff(start, date)];
+}
+
 // Updates one item's mark; an empty mark is dropped, and marks over 8 weeks old are pruned.
 export function withMark(state: Record<string, WeekMark> | undefined, key: string, origDate: string, patch: Partial<WeekMark>, today: string): Record<string, WeekMark> {
   const cutoff = addDays(today, -56);
