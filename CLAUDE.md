@@ -16,6 +16,8 @@ A phone-first household app (PWA) for one family:
   with optional weekdays for the weekly routine.
 - **Plans**: trips and events with date-timed checklists, News/Weather links, weekly
   routine, month/year calendar (holidays, timed events).
+- **Money**: expenses (quick add from the ₹ button on Today), recurring bills with reminders
+  and "Paid", month view by category, editable categories; Shopping asks for the bill amount.
 - **Settings** (gear on Today): household settings, invite code, sign out, and
   "Report a bug or suggest an idea" (feedback + Start Claude button).
 
@@ -31,7 +33,7 @@ src/App.tsx              boot (sign-in, setup, join), tab shell
 src/types.ts             all record types
 src/store/backend.ts     LocalBackend (localStorage) and CloudBackend (Supabase RPCs), sign-in, feedback calls
 src/store/store.tsx      in-memory store, actions, persistence, shopping-list sync
-src/lib/                 pure logic: pantry, suggest, questions, upkeep, plans, calendar, dates (tested)
+src/lib/                 pure logic: pantry, suggest, questions, upkeep, plans, calendar, money, dates (tested)
 src/lib/__tests__/       vitest tests
 src/components/          one file per screen/sheet; shared bits in ui.tsx and toast.tsx
 src/data/                seed items, dishes, upkeep templates
@@ -69,11 +71,14 @@ Check the result with the GitHub check run on the commit.
   `SECURITY DEFINER` functions that take `p_token`: `hm_login`, `hm_logout`, `hm_whoami`,
   `hm_create_household`, `hm_join_household`, `hm_save_household`, `hm_load`, `hm_upsert`,
   `hm_delete`, `hm_version` (cheap change check, polled every 20 s).
+- Tables the app can write/delete are listed in `hm_data_tables`: a new data table only needs a
+  row there (no change to `hm_upsert` / `hm_delete`).
 - `hm_upsert` takes rows in snake_case without `household_id`; the client maps camelCase
   (`rowToDb` / `rowFromDb` in backend.ts). Adding a field = add the column, add it to
   `hm_load`'s output if needed, update `types.ts`.
 - Tables: hm_households, hm_household_members, hm_accounts, hm_sessions, hm_items,
-  hm_dishes, hm_meals, hm_shopping, hm_pantry_events, hm_upkeep, hm_plans, hm_config,
+  hm_dishes, hm_meals, hm_shopping, hm_pantry_events, hm_upkeep, hm_plans, hm_expenses, hm_bills,
+  hm_data_tables, hm_config,
   hm_feedback, hm_feedback_failures. `hm_members` is an unused leftover.
 - Save every schema change as the next numbered file in `supabase/migrations/`.
 - Changes containing DROP/DELETE/REVOKE need a human to approve in Supabase; the
