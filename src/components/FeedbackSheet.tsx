@@ -73,7 +73,7 @@ export function FeedbackSheet({ onClose }: { onClose: () => void }) {
             {busy ? 'Sending…' : 'Send'}
           </PrimaryButton>
 
-          {state?.items.some((f) => f.status === 'new') && <StartClaude onStarted={refresh} />}
+          {!!state?.items.length && <StartClaude onStarted={refresh} />}
 
           {!!state?.items.length && (
             <section className="mt-6">
@@ -116,6 +116,7 @@ function StartClaude({ onStarted }: { onStarted: () => void }) {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [sessionUrl, setSessionUrl] = useState<string | null>(null);
 
   const start = async () => {
     setBusy(true);
@@ -126,9 +127,10 @@ function StartClaude({ onStarted }: { onStarted: () => void }) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ token: getToken(), password }),
       });
-      const out = (await res.json().catch(() => ({}))) as { ok?: boolean; reason?: string; open?: number; missing?: string[] };
+      const out = (await res.json().catch(() => ({}))) as { ok?: boolean; reason?: string; open?: number; missing?: string[]; sessionUrl?: string | null };
       if (out.ok) {
         setPassword('');
+        setSessionUrl(out.sessionUrl ?? null);
         toast(`Claude started on ${out.open} item${out.open === 1 ? '' : 's'}`);
         onStarted();
       } else {
@@ -161,6 +163,11 @@ function StartClaude({ onStarted }: { onStarted: () => void }) {
         </PrimaryButton>
       </div>
       {message && <p className="mt-2 text-sm text-rose-600">{message}</p>}
+      {sessionUrl && (
+        <a href={sessionUrl} target="_blank" rel="noreferrer" className="mt-3 block text-sm font-semibold text-teal-800 underline">
+          Watch Claude work
+        </a>
+      )}
     </section>
   );
 }
