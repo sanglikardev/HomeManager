@@ -7,6 +7,7 @@ import { daysUntilWeeklyOrder } from '../lib/pantry';
 import { SHELF_TABS, shelfGroups, type ShopTab } from '../lib/shopTabs';
 import { useStore } from '../store/store';
 import { CATEGORIES, type Bucket, type Item, type ShoppingEntry } from '../types';
+import { ShoppingBillCard } from './ShoppingBillCard';
 import { useToast } from './toast';
 import { inputCls, Pill, Segmented } from './ui';
 
@@ -126,6 +127,7 @@ export function ShoppingView() {
       {tab !== 'buy' && <Shelf tab={tab} items={store.data.items} needed={[...quick, ...weekly]} />}
 
       {tab === 'buy' && (<>
+      <ShoppingBillCard />
       {!empty && (
         <div className="flex gap-2">
           <a

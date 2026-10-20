@@ -81,27 +81,25 @@ export function TodayView({ onOpenShopping, onGo, settingsButton }: { onOpenShop
 
   return (
     <div className="space-y-4">
-      <header className="flex items-end justify-between">
-        <div>
-          <p className="text-sm text-stone-500">{greeting}</p>
-          <h1 className="text-2xl font-bold text-stone-900">
-            {day === 'today' ? "Today's meals" : "Tomorrow's meals"}
-          </h1>
-          <p className="text-sm text-stone-500">{WEEKDAYS[parseLocalDate(date).getDay()]}{settings.vegOnlyDays.includes(parseLocalDate(date).getDay()) ? ' · veg only' : ''}</p>
-        </div>
-        <div className="flex w-52 items-center gap-2">
-          <div className="flex-1">
-          <Segmented
-            value={day}
-            onChange={setDay}
-            options={[
-              { value: 'today', label: 'Today' },
-              { value: 'tomorrow', label: 'Tomorrow' },
-            ]}
-          />
+      <header className="space-y-3">
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm text-stone-500">{greeting}</p>
+            <h1 className="text-2xl font-bold text-stone-900">
+              {day === 'today' ? "Today's meals" : "Tomorrow's meals"}
+            </h1>
+            <p className="text-sm text-stone-500">{WEEKDAYS[parseLocalDate(date).getDay()]}{settings.vegOnlyDays.includes(parseLocalDate(date).getDay()) ? ' · veg only' : ''}</p>
           </div>
-          {settingsButton}
+          <div className="shrink-0">{settingsButton}</div>
         </div>
+        <Segmented
+          value={day}
+          onChange={setDay}
+          options={[
+            { value: 'today', label: 'Today' },
+            { value: 'tomorrow', label: 'Tomorrow' },
+          ]}
+        />
       </header>
 
       {away && <AwayCard date={date} />}

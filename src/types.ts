@@ -153,6 +153,8 @@ export interface HouseholdSettings {
   setupDone: boolean;
   weeklyChores?: string[]; // 7 entries, 0 = Sunday: what to do each day, repeating every week
   weekState?: Record<string, WeekMark>; // done / moved marks for routine items, keyed `${item}@${original date}`
+  expenseCategories?: string[]; // custom list; defaults to DEFAULT_EXPENSE_CATEGORIES
+  monthlyBudget?: number; // optional total budget per month, in rupees
 }
 
 export interface Household {
@@ -224,6 +226,49 @@ export interface Plan {
   createdAt: string;
 }
 
+// ---------- money ----------
+
+export const DEFAULT_EXPENSE_CATEGORIES = [
+  'Groceries',
+  'Eating out',
+  'Utilities',
+  'Rent / EMI',
+  'Transport & fuel',
+  'Health',
+  'School',
+  'Household help',
+  'Shopping',
+  'Travel',
+  'Other',
+];
+
+export interface Expense {
+  id: string;
+  date: string; // YYYY-MM-DD
+  amount: number; // rupees
+  category: string;
+  note: string;
+  paidBy: string;
+  billId: string | null;
+  source: 'manual' | 'shopping' | 'bill';
+  createdAt: string;
+}
+
+export type BillFrequency = 'monthly' | 'quarterly' | 'yearly';
+
+export interface Bill {
+  id: string;
+  name: string;
+  category: string;
+  amount: number; // usual amount
+  frequency: BillFrequency;
+  nextDue: string; // YYYY-MM-DD
+  remindDays: number;
+  lastPaid: string | null;
+  active: boolean;
+  notes: string;
+}
+
 export interface AppData {
   household: Household;
   items: Item[];
@@ -233,4 +278,6 @@ export interface AppData {
   events: PantryEvent[];
   upkeep: UpkeepTask[];
   plans: Plan[];
+  expenses: Expense[];
+  bills: Bill[];
 }

@@ -1,8 +1,10 @@
-import { CalendarCheck, CalendarDays, ChefHat, MessageSquare, Settings, ShoppingCart, Users, Wrench } from 'lucide-react';
+import { CalendarCheck, CalendarDays, ChefHat, IndianRupee, MessageSquare, Settings, ShoppingCart, Users, Wallet, Wrench } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { DishesView } from './components/DishesView';
 import { LoginScreen } from './components/LoginScreen';
 import { FeedbackSheet } from './components/FeedbackSheet';
+import { ExpenseSheet } from './components/MoneySheets';
+import { MoneyView } from './components/MoneyView';
 import { MoreView } from './components/MoreView';
 import { PantryView } from './components/PantryView';
 import { PlansView } from './components/PlansView';
@@ -157,8 +159,8 @@ function JoinOrCreate({ backend, onCreate, onJoined }: { backend: Backend; onCre
   );
 }
 
-type Tab = 'today' | 'kitchen' | 'shopping' | 'upkeep' | 'plans' | 'more';
-const TABS: Tab[] = ['today', 'kitchen', 'shopping', 'upkeep', 'plans', 'more'];
+type Tab = 'today' | 'kitchen' | 'shopping' | 'upkeep' | 'plans' | 'money' | 'more';
+const TABS: Tab[] = ['today', 'kitchen', 'shopping', 'upkeep', 'plans', 'money', 'more'];
 
 function Shell() {
   const store = useStore();
@@ -169,6 +171,7 @@ function Shell() {
   });
   const [kitchen, setKitchen] = useState<'pantry' | 'dishes'>(() => (location.hash === '#dishes' ? 'dishes' : 'pantry'));
   const [feedback, setFeedback] = useState(false);
+  const [addExpense, setAddExpense] = useState(false);
   useEffect(() => {
     history.replaceState(null, '', `#${tab}`);
     window.scrollTo(0, 0);
@@ -183,9 +186,13 @@ function Shell() {
     { id: 'shopping', label: 'Shopping', icon: ShoppingCart, badge: needed },
     { id: 'upkeep', label: 'Upkeep', icon: Wrench, badge: dueUpkeep, badgeCls: 'bg-rose-500' },
     { id: 'plans', label: 'Plans', icon: CalendarDays },
+    { id: 'money', label: 'Money', icon: Wallet },
   ];
   const gear = (
     <div className="flex gap-2">
+      <button onClick={() => setAddExpense(true)} aria-label="Add expense" className="rounded-xl bg-teal-700 p-2 text-white">
+        <IndianRupee size={18} />
+      </button>
       {store.backend.mode === 'cloud' && (
         <button onClick={() => setFeedback(true)} aria-label="Send feedback" className="rounded-xl p-2 text-stone-500 ring-1 ring-stone-200 bg-white">
           <MessageSquare size={18} />
@@ -224,11 +231,13 @@ function Shell() {
         {tab === 'shopping' && <ShoppingView />}
         {tab === 'upkeep' && <UpkeepView />}
         {tab === 'plans' && <PlansView />}
+        {tab === 'money' && <MoneyView />}
         {tab === 'more' && <MoreView onBack={() => setTab('today')} />}
       </main>
       {feedback && <FeedbackSheet onClose={() => setFeedback(false)} />}
+      {addExpense && <ExpenseSheet expense={null} onClose={() => setAddExpense(false)} />}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 pb-safe backdrop-blur">
-        <div className="mx-auto grid max-w-lg grid-cols-5">
+        <div className="mx-auto grid max-w-lg grid-cols-6">
           {tabs.map((t) => {
             const Icon = t.icon;
             const on = tab === t.id;
@@ -236,7 +245,7 @@ function Shell() {
               <button key={t.id} onClick={() => setTab(t.id)} className={`relative flex flex-col items-center gap-0.5 pb-1 pt-2 text-[11px] font-medium ${on ? 'text-teal-700' : 'text-stone-500'}`}>
                 <Icon size={22} strokeWidth={on ? 2.4 : 1.8} />
                 {t.label}
-                {!!t.badge && <span className={`absolute right-[22%] top-1 min-w-[18px] rounded-full ${t.badgeCls ?? 'bg-amber-500'} px-1 text-[10px] font-bold leading-[18px] text-white`}>{t.badge}</span>}
+                {!!t.badge && <span className={`absolute right-[14%] top-1 min-w-[18px] rounded-full ${t.badgeCls ?? 'bg-amber-500'} px-1 text-[10px] font-bold leading-[18px] text-white`}>{t.badge}</span>}
               </button>
             );
           })}

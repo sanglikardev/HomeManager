@@ -2,11 +2,14 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { localDate } from '../lib/dates';
 import { uid } from '../lib/id';
 import { effectiveLevel, setLevel, syncShoppingList } from '../lib/pantry';
+import { payBill } from '../lib/money';
 import { holdPerishables } from '../lib/plans';
 import type {
   AppData,
+  Bill,
   Bucket,
   Dish,
+  Expense,
   Household,
   HouseholdSettings,
   Item,
@@ -29,6 +32,8 @@ interface Change {
   events?: PantryEvent[];
   upkeep?: UpkeepTask[];
   plans?: Plan[];
+  expenses?: Expense[];
+  bills?: Bill[];
   removed?: Partial<Record<TableName, string[]>>;
 }
 
@@ -48,6 +53,8 @@ function applyChange(data: AppData, c: Change): AppData {
   next.events = merge(data.events, c.events, c.removed?.events);
   next.upkeep = merge(data.upkeep, c.upkeep, c.removed?.upkeep);
   next.plans = merge(data.plans, c.plans, c.removed?.plans);
+  next.expenses = merge(data.expenses, c.expenses, c.removed?.expenses);
+  next.bills = merge(data.bills, c.bills, c.removed?.bills);
   return next;
 }
 
@@ -91,6 +98,13 @@ export interface Store {
   saveUpkeepMany(tasks: UpkeepTask[]): void;
   savePlan(plan: Plan): void;
   deletePlan(id: string): void;
+  saveExpense(expense: Expense): void;
+  deleteExpense(id: string): void;
+  saveBill(bill: Bill): void;
+  deleteBill(id: string): void;
+  payBill(billId: string, amount: number, date: string): string | null; // id of the logged expense
+  // Undo for a payment: puts the bill back and removes the expense.
+  unpayBill(before: Bill, expenseId: string): void;
   updateHousehold(patch: Partial<Omit<Household, 'settings'>> & { settings?: Partial<HouseholdSettings> }): void;
 }
 
@@ -118,7 +132,7 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
       // Writes go out one batch at a time, in order.
       queue.current = queue.current
         .then(async () => {
-          const tables: TableName[] = ['items', 'dishes', 'meals', 'shopping', 'events', 'upkeep', 'plans'];
+          const tables: TableName[] = ['items', 'dishes', 'meals', 'shopping', 'events', 'upkeep', 'plans', 'expenses', 'bills'];
           for (const t of tables) {
             const rows = c[t] as object[] | undefined;
             if (rows?.length) await backend.upsert(t, rows);
@@ -348,6 +362,19 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
       // Plans can hold perishables back from the shopping list, so re-sync.
       savePlan: (plan) => commit(() => ({ plans: [plan] })),
       deletePlan: (id) => commit(() => ({ removed: { plans: [id] } })),
+
+      saveExpense: (expense) => commit(() => ({ expenses: [expense] }), false),
+      deleteExpense: (id) => commit(() => ({ removed: { expenses: [id] } }), false),
+      saveBill: (bill) => commit(() => ({ bills: [bill] }), false),
+      deleteBill: (id) => commit(() => ({ removed: { bills: [id] } }), false),
+      payBill: (billId, amount, date) => {
+        const bill = dataRef.current.bills.find((b) => b.id === billId);
+        if (!bill) return null;
+        const paid = payBill(bill, amount, date);
+        commit(() => ({ bills: [paid.bill], expenses: [paid.expense] }), false);
+        return paid.expense.id;
+      },
+      unpayBill: (before, expenseId) => commit(() => ({ bills: [before], removed: { expenses: [expenseId] } }), false),
 
       updateHousehold: (patch) => {
         const d = dataRef.current;

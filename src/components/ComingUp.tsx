@@ -1,22 +1,26 @@
 import { CalendarDays, Check, ChevronRight, Plane, RefreshCw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { addDays, friendlyDate, localDate } from '../lib/dates';
+import { billDueLabel, billsDue, formatINR } from '../lib/money';
 import { activeTrip, countdown, dateRange, dueTasks, upcomingPlans } from '../lib/plans';
 import { dueLabel, markDone, sortByUrgency, upkeepStatus } from '../lib/upkeep';
 import { useStore } from '../store/store';
-import type { UpkeepTask } from '../types';
+import type { Bill, UpkeepTask } from '../types';
+import { PayBillSheet } from './MoneySheets';
 import { useToast } from './toast';
 import { RenewSheet } from './UpkeepSheet';
 import { STATUS_STYLE } from './UpkeepView';
 
-export type Go = (tab: 'upkeep' | 'plans') => void;
+export type Go = (tab: 'upkeep' | 'plans' | 'money') => void;
 
 // Overdue/soon upkeep, plan tasks due this week, and the next plan.
 export function ComingUpCard({ today, onGo }: { today: string; onGo: Go }) {
   const store = useStore();
   const toast = useToast();
   const [renewing, setRenewing] = useState<UpkeepTask | null>(null);
-  const { upkeep, plans } = store.data;
+  const [paying, setPaying] = useState<Bill | null>(null);
+  const { upkeep, plans, bills } = store.data;
+  const dueBills = useMemo(() => billsDue(bills, today), [bills, today]);
 
   const urgent = useMemo(
     () => sortByUrgency(upkeep, today).filter((t) => ['overdue', 'soon'].includes(upkeepStatus(t, today))),
@@ -25,7 +29,7 @@ export function ComingUpCard({ today, onGo }: { today: string; onGo: Go }) {
   const tasks = useMemo(() => dueTasks(plans, today, 7), [plans, today]);
   const next = upcomingPlans(plans, today).find((p) => p.startDate > today);
 
-  if (!urgent.length && !tasks.length && !next) return null;
+  if (!urgent.length && !tasks.length && !next && !dueBills.length) return null;
 
   const done = (t: UpkeepTask) => {
     if (t.kind === 'renewal') return setRenewing(t);
@@ -57,6 +61,21 @@ export function ComingUpCard({ today, onGo }: { today: string; onGo: Go }) {
             <ChevronRight size={18} className="text-stone-400" />
           </button>
         )}
+        {dueBills.map((b) => (
+          <div key={b.id} className="relative flex items-center gap-3 py-3 pl-5 pr-3">
+            <span className={`absolute inset-y-2 left-0 w-1.5 rounded-r ${b.nextDue < today ? 'bg-rose-500' : 'bg-amber-500'}`} />
+            <button onClick={() => onGo('money')} className="min-w-0 flex-1 text-left">
+              <p className="text-sm font-medium text-stone-900">
+                {b.name}
+                {b.amount > 0 && <span className="font-normal text-stone-500"> · {formatINR(b.amount)}</span>}
+              </p>
+              <p className={`text-xs ${b.nextDue < today ? 'text-rose-700' : 'text-amber-700'}`}>{billDueLabel(b, today)}</p>
+            </button>
+            <button onClick={() => setPaying(b)} className="rounded-xl bg-stone-100 px-3 py-1.5 text-xs font-semibold text-stone-800">
+              Paid
+            </button>
+          </div>
+        ))}
         {tasks.slice(0, 4).map(({ plan, task }) => (
           <div key={task.id} className="flex items-center gap-3 px-4 py-3">
             <button onClick={() => tick(plan.id, task.id)} aria-label={`Done: ${task.text}`} className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full ring-2 ring-stone-300 text-transparent hover:text-teal-700">
@@ -98,6 +117,7 @@ export function ComingUpCard({ today, onGo }: { today: string; onGo: Go }) {
         )}
       </div>
       {renewing && <RenewSheet task={renewing} onClose={() => setRenewing(null)} />}
+      {paying && <PayBillSheet bill={paying} onClose={() => setPaying(null)} />}
     </section>
   );
 }
