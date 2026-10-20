@@ -171,6 +171,30 @@ export async function signOut(): Promise<void> {
   if (token) await supabase().rpc('hm_logout', { p_token: token });
 }
 
+// ---------- feedback (cloud only, owner home only) ----------
+
+export interface FeedbackItem {
+  id: string;
+  kind: 'bug' | 'idea';
+  body: string;
+  status: 'new' | 'working' | 'done' | 'question' | 'declined';
+  claudeNote: string;
+  createdAt: string;
+  updatedAt: string;
+  by: string | null;
+}
+
+export async function listFeedback(): Promise<{ enabled: boolean; items: FeedbackItem[] }> {
+  const { data, error } = await supabase().rpc('hm_feedback_list', { p_token: getToken() });
+  if (error) throw new Error(error.message);
+  return data as { enabled: boolean; items: FeedbackItem[] };
+}
+
+export async function addFeedback(kind: 'bug' | 'idea', body: string): Promise<void> {
+  const { error } = await supabase().rpc('hm_feedback_add', { p_token: getToken(), p_kind: kind, p_body: body });
+  if (error) throw new Error(error.message);
+}
+
 // Every read and write goes through hm_* database functions that check the
 // session token, so the tables themselves stay closed to the public key.
 export class CloudBackend implements Backend {

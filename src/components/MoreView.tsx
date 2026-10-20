@@ -1,7 +1,8 @@
-import { ArrowLeft, Copy, LogOut, Users } from 'lucide-react';
+import { ArrowLeft, Copy, LogOut, MessageSquare, Users } from 'lucide-react';
 import { useState } from 'react';
 import { resetLocalData, signOut } from '../store/backend';
 import { useStore } from '../store/store';
+import { FeedbackSheet } from './FeedbackSheet';
 import { HouseholdForm } from './HouseholdForm';
 import { useToast } from './toast';
 import { ConfirmButton, Field, inputCls } from './ui';
@@ -12,6 +13,7 @@ export function MoreView({ onBack }: { onBack?: () => void }) {
   const { household } = store.data;
   const [name, setName] = useState(household.name);
   const cloud = store.backend.mode === 'cloud';
+  const [feedback, setFeedback] = useState(false);
 
   return (
     <div className="space-y-6">
@@ -58,6 +60,17 @@ export function MoreView({ onBack }: { onBack?: () => void }) {
           <b>This device only.</b> Data is saved in this browser. Once the app is connected to the database, the whole family shares one pantry.
         </section>
       )}
+
+      {cloud && (
+        <button onClick={() => setFeedback(true)} className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left ring-1 ring-stone-200">
+          <MessageSquare size={18} className="text-teal-700" />
+          <div className="flex-1">
+            <p className="font-medium text-stone-800">Report a bug or suggest an idea</p>
+            <p className="text-xs text-stone-500">Claude reads these and replies here</p>
+          </div>
+        </button>
+      )}
+      {feedback && <FeedbackSheet onClose={() => setFeedback(false)} />}
 
       {cloud ? (
         <button onClick={() => signOut()} className="flex w-full items-center justify-center gap-2 rounded-2xl bg-white py-3 font-medium text-stone-700 ring-1 ring-stone-200">
