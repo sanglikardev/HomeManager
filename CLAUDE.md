@@ -7,19 +7,24 @@ them in a private handover note. Never commit keys, tokens or passwords.
 
 A phone-first household app (PWA) for one family:
 
-- **Today**: meal suggestions (top pick + 2 alternatives per meal), quick pantry
-  questions, "Coming up" (upkeep due, plan tasks, next trip), today's routine,
-  away mode during trips.
-- **Kitchen**: Pantry (levels Full/Half/Low/Out) and Dishes (the rotation).
-- **Shopping**: auto-filled list, split "today" (quick commerce) and "weekly order"; WhatsApp share.
-- **Upkeep**: recurring tasks and renewals (filters, bedsheets, vehicle service, insurance...),
-  with optional weekdays for the weekly routine.
-- **Plans**: trips and events with date-timed checklists, News/Weather links, weekly
-  routine, month/year calendar (holidays, timed events).
-- **Money**: expenses (quick add from the ₹ button on Today), recurring bills with reminders
-  and "Paid", month view by category, editable categories; Shopping asks for the bill amount.
-- **Settings** (gear on Today): household settings, invite code, sign out, and
-  "Report a bug or suggest an idea" (feedback + Start Claude button).
+Five tabs plus a "+" button (bottom right) that adds anything: expense, shopping item,
+upkeep task, plan, document, help day off, bug/idea.
+
+- **Today**: a one-screen briefing. Status chips (bills due, budget, to buy, help off,
+  next plan), the next meal by time of day (top pick, "Other ideas", later meals folded),
+  one pantry question at a time, and one "To do" list (routine, bills, upkeep, documents
+  expiring, plan tasks). Away mode during trips.
+- **Food**: Shopping (list first; shelf tabs; WhatsApp/copy icons) | Pantry (opens on
+  "Low or use soon", categories folded under All) | Dishes.
+- **Home**: Upkeep (priority list, "when was it last done?" prompts) | Routine (weekly
+  chores) | Help (household staff: mark only days off / half days; salary = salary minus
+  unpaid leave beyond free days minus advances; paying logs a Money expense) |
+  Docs (warranties, IDs, policies with photos/PDFs and expiry reminders).
+- **Plans**: plans list first, then month/year calendar.
+- **Money**: month total with optional budget (warning from 80%), recurring bills, where it
+  went, expenses, CSV export, "Budget & categories".
+- **Settings** (gear on Today): grouped Your home / Food & meals / Family / App
+  (notifications, feedback, sign out). Feedback icon on Today shows a badge when Claude replied.
 
 Suggestions are rule-based on purpose (owner chose: no AI in the app).
 
@@ -33,11 +38,14 @@ src/App.tsx              boot (sign-in, setup, join), tab shell
 src/types.ts             all record types
 src/store/backend.ts     LocalBackend (localStorage) and CloudBackend (Supabase RPCs), sign-in, feedback calls
 src/store/store.tsx      in-memory store, actions, persistence, shopping-list sync
-src/lib/                 pure logic: pantry, suggest, questions, upkeep, plans, calendar, money, dates (tested)
+src/store/push.ts        phone notification subscribe/unsubscribe/test (VAPID public key)
+src/lib/                 pure logic: pantry, suggest, questions, upkeep, plans, calendar, money, staff, docs, today, dates (tested)
 src/lib/__tests__/       vitest tests
 src/components/          one file per screen/sheet; shared bits in ui.tsx and toast.tsx
 src/data/                seed items, dishes, upkeep templates
-worker/index.ts          Cloudflare Worker: POST /api/feedback/run, everything else = static assets
+worker/index.ts          Cloudflare Worker: POST /api/feedback/run, POST /api/push/test, hourly cron for
+                         morning notifications; everything else = static assets
+worker/push.ts           Web Push encryption (RFC 8291) + VAPID signing with WebCrypto
 supabase/migrations/     SQL history (applied by hand / via the Supabase connector)
 public/                  PWA manifest, icons, pass-through sw.js
 ```
@@ -79,7 +87,13 @@ Check the result with the GitHub check run on the commit.
 - Tables: hm_households, hm_household_members, hm_accounts, hm_sessions, hm_items,
   hm_dishes, hm_meals, hm_shopping, hm_pantry_events, hm_upkeep, hm_plans, hm_expenses, hm_bills,
   hm_data_tables, hm_config,
-  hm_feedback, hm_feedback_failures. `hm_members` is an unused leftover.
+  hm_feedback, hm_feedback_failures, hm_staff, hm_docs, hm_doc_files, hm_push_subs.
+  `hm_members` is an unused leftover.
+- Document files are base64 rows in `hm_doc_files` (written via hm_upsert, read one at a
+  time with `hm_doc_file(token, id)`, never in hm_load). Photos are shrunk client-side.
+- Notifications: `hm_push_subs` per phone; `hm_push_due(secret)` (hourly Worker cron) and
+  `hm_push_test(secret, token)` return the VAPID private JWK from hm_config plus messages;
+  the secret is the `PUSH_SECRET` Worker secret, checked against hm_config `push_secret_hash`.
 - Save every schema change as the next numbered file in `supabase/migrations/`.
 - Changes containing DROP/DELETE/REVOKE need a human to approve in Supabase; the
   connector's apply_migration times out waiting. Give such SQL to the owner to run in the
