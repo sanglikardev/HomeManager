@@ -13,6 +13,48 @@ const STATUS: Record<FeedbackItem['status'], { label: string; cls: string }> = {
 };
 
 // Feedback (bugs and ideas) for the app itself. Claude reads these and replies in claudeNote.
+const SEEN_KEY = 'homemanager_feedback_seen';
+
+function seenAt(): string {
+  try {
+    return localStorage.getItem(SEEN_KEY) ?? '';
+  } catch {
+    return '';
+  }
+}
+
+function markSeen() {
+  try {
+    localStorage.setItem(SEEN_KEY, new Date().toISOString());
+  } catch {
+    // only drives the badge
+  }
+  window.dispatchEvent(new Event('homemanager-feedback-seen'));
+}
+
+// How many of Claude's replies came in since the feedback sheet was last opened.
+export function useFeedbackReplies(enabled: boolean): number {
+  const [count, setCount] = useState(0);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    const check = () =>
+      listFeedback()
+        .then((r) => alive && setCount(r.items.filter((f) => f.claudeNote && f.status !== 'working' && f.updatedAt > seenAt()).length))
+        .catch(() => {});
+    check();
+    const onSeen = () => setCount(0);
+    window.addEventListener('homemanager-feedback-seen', onSeen);
+    const t = window.setInterval(check, 5 * 60 * 1000);
+    return () => {
+      alive = false;
+      window.removeEventListener('homemanager-feedback-seen', onSeen);
+      window.clearInterval(t);
+    };
+  }, [enabled]);
+  return count;
+}
+
 export function FeedbackSheet({ onClose }: { onClose: () => void }) {
   const toast = useToast();
   const [body, setBody] = useState('');
@@ -22,7 +64,10 @@ export function FeedbackSheet({ onClose }: { onClose: () => void }) {
 
   const refresh = () =>
     listFeedback()
-      .then(setState)
+      .then((r) => {
+        setState(r);
+        markSeen();
+      })
       .catch((e) => setError(e instanceof Error ? e.message : String(e)));
   useEffect(() => {
     refresh();

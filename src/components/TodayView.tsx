@@ -1,7 +1,7 @@
 import { CalendarDays, Check, ChefHat, ChevronDown, Clock, HelpCircle, Plus, RotateCcw, Send, ShoppingCart, Sparkles, Undo2, UtensilsCrossed, Wallet } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { addDays, localDate, parseLocalDate, WEEKDAYS } from '../lib/dates';
-import { billsDue } from '../lib/money';
+import { billsDue, budgetState, monthOf, summarize } from '../lib/money';
 import { activeTrip, countdown, upcomingPlans } from '../lib/plans';
 import { pickQuestions, type Question } from '../lib/questions';
 import { suggest, type Suggestion } from '../lib/suggest';
@@ -60,6 +60,8 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
 
   const neededCount = data.shopping.filter((s) => s.status === 'needed').length;
   const billCount = billsDue(data.bills, today).length;
+  const budget = budgetState(summarize(data.expenses, monthOf(today)).total, settings.monthlyBudget);
+  const budgetWarn = budget && budget.level !== 'ok' ? budget : null;
   const nextPlan = upcomingPlans(data.plans, today).find((p) => p.startDate > today);
 
   const cook = (slot: Slot, s: Suggestion) => {
@@ -126,11 +128,16 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
           </div>
           <div className="shrink-0">{actions}</div>
         </div>
-        {(billCount > 0 || neededCount > 0 || nextPlan) && (
+        {(billCount > 0 || neededCount > 0 || nextPlan || budgetWarn) && (
           <div className="mt-2 flex flex-wrap gap-1.5">
             {billCount > 0 && (
               <Chip onClick={() => onGo('money')} cls="bg-rose-50 text-rose-800 ring-rose-200">
                 <Wallet size={13} /> {billCount} bill{billCount > 1 ? 's' : ''} due
+              </Chip>
+            )}
+            {budgetWarn && (
+              <Chip onClick={() => onGo('money')} cls="bg-rose-50 text-rose-800 ring-rose-200">
+                <Wallet size={13} /> {budgetWarn.level === 'over' ? 'Over budget' : `${budgetWarn.pct}% of budget used`}
               </Chip>
             )}
             {neededCount > 0 && (

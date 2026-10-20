@@ -4,7 +4,7 @@ import { WeeklyChores } from './components/CalendarSection';
 import type { Dest } from './components/ComingUp';
 import { DishesView } from './components/DishesView';
 import { LoginScreen } from './components/LoginScreen';
-import { FeedbackSheet } from './components/FeedbackSheet';
+import { FeedbackSheet, useFeedbackReplies } from './components/FeedbackSheet';
 import { MoneyView } from './components/MoneyView';
 import { MoreView } from './components/MoreView';
 import { PantryView } from './components/PantryView';
@@ -184,6 +184,7 @@ function Shell() {
   const [home, setHome] = useState<HomePage>(start.home ?? 'upkeep');
   const [feedback, setFeedback] = useState(false);
   const [adding, setAdding] = useState(false);
+  const replies = useFeedbackReplies(store.backend.mode === 'cloud');
   useEffect(() => {
     history.replaceState(null, '', `#${tab === 'food' ? food : tab === 'home' ? home : tab}`);
   }, [tab, food, home]);
@@ -212,8 +213,9 @@ function Shell() {
   const actions = (
     <div className="flex gap-2">
       {store.backend.mode === 'cloud' && (
-        <button onClick={() => setFeedback(true)} aria-label="Send feedback" className="rounded-xl bg-white p-2 text-stone-500 ring-1 ring-stone-200">
+        <button onClick={() => setFeedback(true)} aria-label={replies ? `Feedback, ${replies} new replies` : 'Send feedback'} className="relative rounded-xl bg-white p-2 text-stone-500 ring-1 ring-stone-200">
           <MessageSquare size={18} />
+          {replies > 0 && <span className="absolute -right-1.5 -top-1.5 min-w-[18px] rounded-full bg-violet-600 px-1 text-[10px] font-bold leading-[18px] text-white">{replies}</span>}
         </button>
       )}
       <button onClick={() => setTab('more')} aria-label="Home settings" className="rounded-xl bg-white p-2 text-stone-500 ring-1 ring-stone-200">

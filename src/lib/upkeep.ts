@@ -83,3 +83,17 @@ export function moveTask(ordered: UpkeepTask[], shown: UpkeepTask[], id: string,
   const full = ordered.map((t) => (shownSet.has(t.id) ? byId.get(ids[k++])! : t));
   return full.map((t, i) => ({ ...t, sortOrder: i })).filter((t) => byId.get(t.id)!.sortOrder !== t.sortOrder);
 }
+
+export type LastDoneGuess = 'week' | 'month' | 'months' | 'unsure';
+export const LAST_DONE_CHOICES: { value: LastDoneGuess; label: string }[] = [
+  { value: 'week', label: 'This week' },
+  { value: 'month', label: 'This month' },
+  { value: 'months', label: '2–3 months ago' },
+  { value: 'unsure', label: 'Not sure' },
+];
+
+// A rough last-done date from a one-tap answer. "Not sure" makes it due today.
+export function guessLastDone(task: UpkeepTask, guess: LastDoneGuess, today: string): UpkeepTask {
+  const back = guess === 'week' ? 3 : guess === 'month' ? 15 : guess === 'months' ? 75 : (task.intervalDays ?? 30);
+  return { ...task, lastDone: addDays(today, -back) };
+}

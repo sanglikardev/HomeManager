@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Plan, UpkeepTask } from '../../types';
 import { choreFor, entriesOn, entryCountsByDay, monthGrid, routineOn, routineWeek, weekChores, weekStart, withMark } from '../calendar';
 import { activeTrip, buildChecklist, dueTasks, holdPerishables } from '../plans';
-import { markDone, moveTask, nextDue, sortByPriority, unmarkDone, sortByUrgency, upkeepStatus } from '../upkeep';
+import { guessLastDone, markDone, moveTask, nextDue, sortByPriority, unmarkDone, sortByUrgency, upkeepStatus } from '../upkeep';
 
 const task = (p: Partial<UpkeepTask>): UpkeepTask => ({
   id: 'x', name: 'Task', category: 'home', kind: 'recurring', intervalDays: 30, lastDone: null, dueDate: null, remindDays: 7, details: {}, history: [], notes: '', ...p,
@@ -136,5 +136,17 @@ describe('weekly routine with upkeep', () => {
     const t = markDone(markDone(task({}), '2026-10-15'), '2026-10-19');
     const u = unmarkDone(t, '2026-10-19');
     expect(u.lastDone).toBe('2026-10-15');
+  });
+});
+
+describe('guessLastDone', () => {
+  const base = { id: 'x', name: 'AC filter', category: 'home', kind: 'recurring', intervalDays: 30, lastDone: null, dueDate: null, remindDays: 3, details: {}, history: [], notes: '' } as const;
+  it('maps answers to rough dates', () => {
+    expect(guessLastDone({ ...base, history: [] }, 'week', '2026-10-20').lastDone).toBe('2026-10-17');
+    expect(guessLastDone({ ...base, history: [] }, 'months', '2026-10-20').lastDone).toBe('2026-08-06');
+  });
+  it('makes "not sure" due today', () => {
+    const t = guessLastDone({ ...base, history: [] }, 'unsure', '2026-10-20');
+    expect(upkeepStatus(t, '2026-10-20')).toBe('soon');
   });
 });

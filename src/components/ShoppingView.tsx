@@ -9,7 +9,7 @@ import { useStore } from '../store/store';
 import { CATEGORIES, type Bucket, type Item, type ShoppingEntry } from '../types';
 import { ShoppingBillCard } from './ShoppingBillCard';
 import { useToast } from './toast';
-import { inputCls, Pill, Segmented } from './ui';
+import { inputCls, Pill } from './ui';
 
 export function ShoppingView() {
   const store = useStore();
@@ -69,47 +69,57 @@ export function ShoppingView() {
   const empty = !quick.length && !weekly.length;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-bold text-stone-900">Shopping</h1>
-        <button
-          onClick={() => {
-            store.refreshShopping();
-            toast('List checked against the pantry');
-          }}
-          className="flex items-center gap-1 rounded-xl px-2 py-2 text-sm text-stone-600 hover:bg-stone-100"
-        >
-          <RefreshCw size={15} /> Refresh
-        </button>
-      </header>
-
-      <div className="space-y-2 rounded-2xl bg-white p-3 ring-1 ring-stone-200">
-        <div className="flex gap-2">
-          <input
-            className={inputCls}
-            list="hm-items"
-            placeholder="Add something"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && add()}
-          />
-          <datalist id="hm-items">
-            {itemNames.map((n) => (
-              <option key={n} value={n} />
-            ))}
-          </datalist>
-          <button onClick={add} className="rounded-xl bg-teal-700 px-3 text-white" aria-label="Add to list">
-            <Plus size={20} />
+        <div className="flex gap-1">
+          {!empty && (
+            <>
+              <a href={`https://wa.me/?text=${encodeURIComponent(listText())}`} target="_blank" rel="noreferrer" aria-label="Send on WhatsApp" className="rounded-xl p-2 text-emerald-700 hover:bg-emerald-50">
+                <Share2 size={19} />
+              </a>
+              <button onClick={copy} aria-label="Copy list" className="rounded-xl p-2 text-stone-600 hover:bg-stone-100">
+                <Copy size={19} />
+              </button>
+            </>
+          )}
+          <button
+            onClick={() => {
+              store.refreshShopping();
+              toast('List checked against the pantry');
+            }}
+            aria-label="Check against the pantry"
+            className="rounded-xl p-2 text-stone-600 hover:bg-stone-100"
+          >
+            <RefreshCw size={19} />
           </button>
         </div>
-        <Segmented
-          value={bucket}
-          onChange={setBucket}
-          options={[
-            { value: 'quick', label: 'Need today' },
-            { value: 'weekly', label: 'Weekly order' },
-          ]}
+      </header>
+
+      <div className="flex gap-2">
+        <input
+          className={inputCls}
+          list="hm-items"
+          placeholder="Add something"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => e.key === 'Enter' && add()}
         />
+        <datalist id="hm-items">
+          {itemNames.map((n) => (
+            <option key={n} value={n} />
+          ))}
+        </datalist>
+        <button
+          onClick={() => setBucket(bucket === 'quick' ? 'weekly' : 'quick')}
+          aria-label="When to buy"
+          className="shrink-0 rounded-xl bg-white px-3 text-xs font-semibold text-stone-700 ring-1 ring-stone-200"
+        >
+          {bucket === 'quick' ? 'Today' : 'Weekly'}
+        </button>
+        <button onClick={add} className="shrink-0 rounded-xl bg-teal-700 px-3 text-white" aria-label="Add to list">
+          <Plus size={20} />
+        </button>
       </div>
 
       <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1">
@@ -127,23 +137,6 @@ export function ShoppingView() {
       {tab !== 'buy' && <Shelf tab={tab} items={store.data.items} needed={[...quick, ...weekly]} />}
 
       {tab === 'buy' && (<>
-      <ShoppingBillCard />
-      {!empty && (
-        <div className="flex gap-2">
-          <a
-            href={`https://wa.me/?text=${encodeURIComponent(listText())}`}
-            target="_blank"
-            rel="noreferrer"
-            className="flex flex-1 items-center justify-center gap-2 rounded-2xl bg-emerald-600 py-3 font-semibold text-white"
-          >
-            <Share2 size={18} /> Send on WhatsApp
-          </a>
-          <button onClick={copy} className="flex items-center justify-center gap-2 rounded-2xl bg-white px-4 py-3 font-medium text-stone-700 ring-1 ring-stone-200">
-            <Copy size={18} /> Copy
-          </button>
-        </div>
-      )}
-
       {empty && (
         <div className="rounded-2xl bg-white p-6 text-center ring-1 ring-stone-200">
           <p className="font-semibold text-stone-800">Nothing to buy right now</p>
@@ -153,6 +146,7 @@ export function ShoppingView() {
 
       <ListSection title="Top up today" hint="Quick delivery or the corner shop" entries={quick} />
       <ListSection title="Weekly order" hint={`Next order ${orderWhen}`} entries={weekly} />
+      <ShoppingBillCard />
 
       {bought.length > 0 && (
         <section>

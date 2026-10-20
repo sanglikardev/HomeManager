@@ -2,7 +2,7 @@ import { Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { localDate } from '../lib/dates';
 import { uid } from '../lib/id';
-import { categoriesFor, formatINR, parseAmount } from '../lib/money';
+import { categoriesFor, formatINR, parseAmount, payers } from '../lib/money';
 import { useStore } from '../store/store';
 import type { Bill, BillFrequency, Expense } from '../types';
 import { useToast } from './toast';
@@ -64,6 +64,7 @@ export function ExpenseSheet({ expense, defaults, onClose }: { expense: Expense 
   const [note, setNote] = useState(expense?.note ?? defaults?.note ?? '');
   const [paidBy, setPaidBy] = useState(expense?.paidBy ?? lastPaidBy());
   const value = parseAmount(amount);
+  const known = payers(store.data.expenses);
 
   const save = () => {
     if (!value || !category) return;
@@ -131,6 +132,15 @@ export function ExpenseSheet({ expense, defaults, onClose }: { expense: Expense 
           <input id="expense-paid-by" className={inputCls} placeholder="Name" value={paidBy} onChange={(e) => setPaidBy(e.target.value)} />
         </Field>
       </div>
+      {known.length > 0 && (
+        <div className="-mt-1 flex flex-wrap justify-end gap-1.5">
+          {known.map((n) => (
+            <button key={n} type="button" onClick={() => setPaidBy(paidBy === n ? '' : n)} className={`rounded-full px-3 py-1 text-xs ${paidBy === n ? 'bg-teal-700 text-white' : 'bg-stone-100 text-stone-700'}`}>
+              {n}
+            </button>
+          ))}
+        </div>
+      )}
     </Sheet>
   );
 }

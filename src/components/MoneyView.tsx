@@ -1,11 +1,11 @@
-import { ChevronLeft, ChevronRight, Plus, Receipt, Repeat, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, Plus, Receipt, Repeat, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { friendlyDate, localDate } from '../lib/dates';
-import { billDueLabel, billStatus, categoriesFor, changePct, formatINR, monthLabel, monthOf, shiftMonth, summarize } from '../lib/money';
+import { billDueLabel, billStatus, budgetState, categoriesFor, changePct, expensesCsv, formatINR, monthLabel, monthOf, parseAmount, shiftMonth, summarize } from '../lib/money';
 import { useStore } from '../store/store';
 import type { Bill, Expense } from '../types';
 import { BillSheet, ExpenseSheet, PayBillSheet } from './MoneySheets';
-import { inputCls, Sheet } from './ui';
+import { Field, inputCls, Sheet } from './ui';
 
 const BILL_STYLE = {
   overdue: 'text-rose-700',
@@ -31,6 +31,9 @@ export function MoneyView() {
   const isCurrent = month === monthOf(today);
   const maxCat = summary.byCategory[0]?.total ?? 0;
   const list = showAll ? summary.expenses : summary.expenses.slice(0, 10);
+  const settings = store.data.household.settings;
+  const budget = budgetState(summary.total, settings.monthlyBudget);
+  const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(expensesCsv(summary.expenses))}`;
 
   return (
     <div className="space-y-5">
@@ -56,6 +59,18 @@ export function MoneyView() {
           {summary.count} expense{summary.count === 1 ? '' : 's'}
           {change !== null && ` · ${change > 0 ? '▲' : change < 0 ? '▼' : ''} ${Math.abs(change)}% vs ${monthLabel(shiftMonth(month, -1)).split(' ')[0]} (${formatINR(prev.total)})`}
         </p>
+        {budget && (
+          <div className="mt-3">
+            <div className="h-2 overflow-hidden rounded-full bg-white/20">
+              <div className={`h-full rounded-full ${budget.level === 'over' ? 'bg-rose-300' : budget.level === 'near' ? 'bg-amber-300' : 'bg-white'}`} style={{ width: `${Math.min(100, budget.pct)}%` }} />
+            </div>
+            <p className={`mt-1 text-center text-xs ${budget.level === 'ok' ? 'text-teal-100' : 'font-semibold text-amber-100'}`}>
+              {budget.level === 'over'
+                ? `Over the ${formatINR(settings.monthlyBudget!)} budget by ${formatINR(summary.total - settings.monthlyBudget!)}`
+                : `${budget.pct}% of the ${formatINR(settings.monthlyBudget!)} budget${budget.level === 'near' ? ' · getting close' : ''}`}
+            </p>
+          </div>
+        )}
       </section>
 
       <section>
@@ -119,7 +134,7 @@ export function MoneyView() {
         </section>
       )}
 
-      {summary.top.length > 1 && (
+      {summary.count > 8 && (
         <section>
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Biggest expenses</h2>
           <ExpenseList expenses={summary.top} today={today} onOpen={setEditing} />
@@ -146,9 +161,14 @@ export function MoneyView() {
         )}
       </section>
 
-      <button onClick={() => setEditCats(true)} className="w-full text-center text-sm text-stone-500">
-        Edit categories
-      </button>
+      <div className="flex justify-center gap-6 text-sm text-stone-500">
+        <button onClick={() => setEditCats(true)}>Budget & categories</button>
+        {summary.expenses.length > 0 && (
+          <a href={csvHref} download={`expenses-${month}.csv`} className="flex items-center gap-1">
+            <Download size={14} /> Export {monthLabel(month).split(' ')[0]}
+          </a>
+        )}
+      </div>
 
       {editCats && <CategoriesSheet onClose={() => setEditCats(false)} />}
       {editing && <ExpenseSheet expense={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
@@ -182,6 +202,11 @@ function CategoriesSheet({ onClose }: { onClose: () => void }) {
   const store = useStore();
   const categories = categoriesFor(store.data.household.settings);
   const [name, setName] = useState('');
+  const [budget, setBudget] = useState(store.data.household.settings.monthlyBudget ? String(store.data.household.settings.monthlyBudget) : '');
+  const saveBudget = () => {
+    const v = parseAmount(budget);
+    if ((v ?? 0) !== (store.data.household.settings.monthlyBudget ?? 0)) store.updateHousehold({ settings: { monthlyBudget: v ?? 0 } });
+  };
   const save = (list: string[]) => store.updateHousehold({ settings: { expenseCategories: list } });
   const add = () => {
     const n = name.trim();
@@ -190,7 +215,17 @@ function CategoriesSheet({ onClose }: { onClose: () => void }) {
     setName('');
   };
   return (
-    <Sheet title="Expense categories" onClose={onClose}>
+    <Sheet
+      title="Budget & categories"
+      onClose={() => {
+        saveBudget();
+        onClose();
+      }}
+    >
+      <Field label="Monthly budget (optional)" hint="You get a warning on the Money tab once 80% is spent.">
+        <input id="monthly-budget" inputMode="numeric" className={inputCls} placeholder="e.g. 60000" value={budget} onChange={(e) => setBudget(e.target.value.replace(/[^\d.,]/g, ''))} onBlur={saveBudget} />
+      </Field>
+      <p className="mb-1.5 mt-2 text-sm font-medium text-stone-700">Categories</p>
       <div className="mb-3 divide-y divide-stone-100 rounded-2xl bg-white ring-1 ring-stone-200">
         {categories.map((c) => (
           <div key={c} className="flex items-center justify-between px-4 py-2.5">

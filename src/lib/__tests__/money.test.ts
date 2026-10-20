@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Bill, Expense } from '../../types';
-import { addMonths, billStatus, billsDue, changePct, formatINR, parseAmount, payBill, shiftMonth, summarize } from '../money';
+import { addMonths, billStatus, billsDue, budgetState, changePct, expensesCsv, formatINR, parseAmount, payBill, payers, shiftMonth, summarize } from '../money';
 
 const exp = (p: Partial<Expense>): Expense => ({
   id: Math.random().toString(36), date: '2026-10-05', amount: 100, category: 'Groceries', note: '', paidBy: '', billId: null, source: 'manual', createdAt: '2026-10-05T10:00:00Z', ...p,
@@ -53,5 +53,22 @@ describe('money', () => {
     expect(paid.bill.nextDue).toBe('2027-01-25');
     expect(paid.bill.lastPaid).toBe('2026-10-24');
     expect(paid.expense).toMatchObject({ amount: 21000, category: 'Rent / EMI', note: 'Rent', billId: 'b', source: 'bill' });
+  });
+});
+
+describe('payers, budget and CSV', () => {
+  const e = (paidBy: string, note = '', amount = 10, date = '2026-10-01') => ({ id: paidBy + note, date, amount, category: 'Other', note, paidBy, billId: null, source: 'manual' as const, createdAt: '' });
+  it('lists payers by use', () => {
+    expect(payers([e('Asha'), e('Ravi'), e('Asha'), e(''), e('Asha ')])).toEqual(['Asha', 'Ravi']);
+  });
+  it('flags the budget from 80%', () => {
+    expect(budgetState(500, undefined)).toBeNull();
+    expect(budgetState(700, 1000)?.level).toBe('ok');
+    expect(budgetState(800, 1000)?.level).toBe('near');
+    expect(budgetState(1200, 1000)).toEqual({ pct: 120, level: 'over' });
+  });
+  it('quotes CSV cells that need it', () => {
+    const csv = expensesCsv([e('Asha', 'Milk, bread', 45.5, '2026-10-02'), e('Ravi', 'Say "hi"', 10, '2026-10-01')]);
+    expect(csv.split('\n')).toEqual(['Date,Amount,Category,Note,Paid by', '2026-10-01,10,Other,"Say ""hi""",Ravi', '2026-10-02,45.5,Other,"Milk, bread",Asha']);
   });
 });

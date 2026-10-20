@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { UPKEEP_TEMPLATES } from '../data/upkeepTemplates';
 import { localDate } from '../lib/dates';
 import { uid } from '../lib/id';
-import { dueLabel, markDone, moveTask, sortByPriority, upkeepStatus, type UpkeepStatus } from '../lib/upkeep';
+import { dueLabel, guessLastDone, LAST_DONE_CHOICES, markDone, moveTask, sortByPriority, upkeepStatus, type UpkeepStatus } from '../lib/upkeep';
 import { useStore } from '../store/store';
 import { UPKEEP_CATEGORIES, type UpkeepTask } from '../types';
 import { useToast } from './toast';
@@ -127,6 +127,8 @@ export function UpkeepView() {
         ))}
       </div>
 
+      <LastDoneCard tasks={tasks} today={today} onRenewal={setEditing} />
+
       <p className="text-xs text-stone-500">Your priority order. Press and hold a task, then drag it to move it.</p>
       <div ref={listRef} className="divide-y divide-stone-100 overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
         {(drag ? moveShown(shown, drag) : shown).map((t, i) => {
@@ -177,6 +179,46 @@ export function UpkeepView() {
         </Sheet>
       )}
     </div>
+  );
+}
+
+// Asks, one task at a time, roughly when tasks with no date were last done.
+function LastDoneCard({ tasks, today, onRenewal }: { tasks: UpkeepTask[]; today: string; onRenewal: (t: UpkeepTask) => void }) {
+  const store = useStore();
+  const [skipped, setSkipped] = useState<Set<string>>(new Set());
+  const unknown = tasks.filter((t) => upkeepStatus(t, today) === 'unknown' && !skipped.has(t.id));
+  const t = unknown[0];
+  if (!t) return null;
+  return (
+    <section className="rounded-3xl bg-violet-50 p-4 ring-1 ring-violet-200">
+      <p className="mb-1 flex items-center text-xs font-medium text-violet-700">
+        Getting started{unknown.length > 1 && <span className="ml-auto">{unknown.length} to go</span>}
+      </p>
+      {t.kind === 'renewal' ? (
+        <>
+          <p className="mb-2 text-sm text-violet-950">When does <b>{t.name}</b> expire?</p>
+          <div className="flex gap-2">
+            <button onClick={() => onRenewal(t)} className="rounded-xl bg-violet-700 px-3 py-2 text-sm font-semibold text-white">
+              Set the date
+            </button>
+            <button onClick={() => setSkipped((s) => new Set(s).add(t.id))} className="rounded-xl px-3 py-2 text-sm text-violet-700">
+              Later
+            </button>
+          </div>
+        </>
+      ) : (
+        <>
+          <p className="mb-2 text-sm text-violet-950">When was <b>{t.name.toLowerCase()}</b> last done?</p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {LAST_DONE_CHOICES.map((c) => (
+              <button key={c.value} onClick={() => store.saveUpkeep(guessLastDone(t, c.value, today))} className="rounded-xl border border-violet-200 bg-white py-2 text-sm font-medium text-stone-700">
+                {c.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+    </section>
   );
 }
 

@@ -116,3 +116,29 @@ export function payBill(bill: Bill, amount: number, date: string, now: Date = ne
 function round(n: number) {
   return Math.round(n * 100) / 100;
 }
+
+// Names people have entered under "Paid by", most used first.
+export function payers(expenses: Expense[], max = 4): string[] {
+  const n = new Map<string, number>();
+  for (const e of expenses) if (e.paidBy.trim()) n.set(e.paidBy.trim(), (n.get(e.paidBy.trim()) ?? 0) + 1);
+  return [...n.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).slice(0, max).map(([name]) => name);
+}
+
+export type BudgetState = { pct: number; level: 'ok' | 'near' | 'over' } | null;
+
+// How much of the monthly budget is used; "near" from 80%.
+export function budgetState(total: number, budget: number | undefined): BudgetState {
+  if (!budget || budget <= 0) return null;
+  const pct = Math.round((total / budget) * 100);
+  return { pct, level: pct > 100 ? 'over' : pct >= 80 ? 'near' : 'ok' };
+}
+
+// Expenses as a CSV file for a spreadsheet.
+export function expensesCsv(expenses: Expense[]): string {
+  const cell = (v: string | number) => {
+    const s = String(v);
+    return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+  };
+  const rows = [...expenses].sort((a, b) => a.date.localeCompare(b.date)).map((e) => [e.date, e.amount, e.category, e.note, e.paidBy].map(cell).join(','));
+  return ['Date,Amount,Category,Note,Paid by', ...rows].join('\n');
+}

@@ -26,13 +26,21 @@ export function MoreView({ onBack }: { onBack?: () => void }) {
         <h1 className="text-2xl font-bold text-stone-900">Home settings</h1>
       </header>
 
-      <section className="rounded-2xl bg-white p-4 ring-1 ring-stone-200">
-        <Field label="Name">
-          <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() && name !== household.name && store.updateHousehold({ name: name.trim() })} />
-        </Field>
-        <HouseholdForm settings={household.settings} onChange={(s) => store.updateHousehold({ settings: s })} />
-      </section>
+      <Group title="Your home">
+        <section className="rounded-2xl bg-white p-4 ring-1 ring-stone-200">
+          <Field label="Home name">
+            <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() && name !== household.name && store.updateHousehold({ name: name.trim() })} />
+          </Field>
+        </section>
+      </Group>
 
+      <Group title="Food & meals">
+        <section className="rounded-2xl bg-white p-4 ring-1 ring-stone-200">
+          <HouseholdForm settings={household.settings} onChange={(s) => store.updateHousehold({ settings: s })} />
+        </section>
+      </Group>
+
+      <Group title="Family">
       {cloud ? (
         <section className="rounded-2xl bg-white p-4 ring-1 ring-stone-200">
           <h2 className="mb-1 flex items-center gap-2 font-semibold">
@@ -60,7 +68,9 @@ export function MoreView({ onBack }: { onBack?: () => void }) {
           <b>This device only.</b> Data is saved in this browser. Once the app is connected to the database, the whole family shares one pantry.
         </section>
       )}
+      </Group>
 
+      <Group title="App">
       {cloud && (
         <button onClick={() => setFeedback(true)} className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left ring-1 ring-stone-200">
           <MessageSquare size={18} className="text-teal-700" />
@@ -87,6 +97,16 @@ export function MoreView({ onBack }: { onBack?: () => void }) {
           className="w-full rounded-2xl py-3 text-sm text-rose-600"
         />
       )}
+      </Group>
+    </div>
+  );
+}
+
+function Group({ title, children }: { title: string; children: React.ReactNode }) {
+  return (
+    <div className="space-y-2">
+      <h2 className="text-sm font-semibold uppercase tracking-wide text-stone-500">{title}</h2>
+      {children}
     </div>
   );
 }
