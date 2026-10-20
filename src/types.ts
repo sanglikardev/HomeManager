@@ -135,6 +135,12 @@ export interface PantryEvent {
 
 export type Diet = 'veg' | 'egg' | 'nonveg';
 
+// A routine item ticked off or moved to another day, for one week only.
+export interface WeekMark {
+  done?: boolean;
+  to?: string; // YYYY-MM-DD it was moved to
+}
+
 export interface HouseholdSettings {
   people: number;
   diet: Diet;
@@ -144,6 +150,7 @@ export interface HouseholdSettings {
   cookAtHome: boolean;
   setupDone: boolean;
   weeklyChores?: string[]; // 7 entries, 0 = Sunday: what to do each day, repeating every week
+  weekState?: Record<string, WeekMark>; // done / moved marks for routine items, keyed `${item}@${original date}`
 }
 
 export interface Household {
@@ -185,6 +192,7 @@ export interface UpkeepTask {
   lastDone: string | null; // YYYY-MM-DD
   dueDate: string | null; // YYYY-MM-DD, renewals only
   remindDays: number; // start reminding this many days before
+  weekdays?: number[]; // recurring only: days of the week it appears in the weekly routine, 0 = Sunday
   details: Record<string, string>; // policy number, provider, vehicle number...
   history: string[]; // dates it was done or renewed, newest first
   notes: string;

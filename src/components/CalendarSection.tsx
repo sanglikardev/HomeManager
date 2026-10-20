@@ -1,10 +1,11 @@
-import { ChevronLeft, ChevronRight, Pencil, Plus } from 'lucide-react';
+import { ArrowRightLeft, ChevronLeft, ChevronRight, Pencil, Plus } from 'lucide-react';
 import { useMemo, useState } from 'react';
-import { choreFor, entriesOn, entryCountsByDay, monthGrid, weekChores } from '../lib/calendar';
-import { localDate, parseLocalDate, WEEKDAYS, WEEKDAYS_SHORT } from '../lib/dates';
+import { choreFor, entriesOn, entryCountsByDay, monthGrid, routineWeek, type RoutineItem, weekStart, withMark } from '../lib/calendar';
+import { addDays, friendlyDate, localDate, parseLocalDate, WEEKDAYS, WEEKDAYS_SHORT } from '../lib/dates';
 import { uid } from '../lib/id';
+import { markDone, unmarkDone } from '../lib/upkeep';
 import { useStore } from '../store/store';
-import type { Plan } from '../types';
+import type { Plan, WeekMark } from '../types';
 import { Field, inputCls, PrimaryButton, Segmented, Sheet } from './ui';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -18,35 +19,106 @@ export function WeeklyChores() {
   const settings = store.data.household.settings;
   const today = localDate();
   const [editing, setEditing] = useState(false);
-  const week = weekChores(settings, today);
-  const any = week.some((w) => w.chore);
+  const [offset, setOffset] = useState(0);
+  const [moving, setMoving] = useState<RoutineItem | null>(null);
+  const start = addDays(weekStart(today), offset * 7);
+  const week = routineWeek(settings, store.data.upkeep, start);
+  const any = week.some((d) => d.length);
+  const mark = (item: RoutineItem, patch: Partial<WeekMark>) =>
+    store.updateHousehold({ settings: { weekState: withMark(settings.weekState, item.key, item.origDate, patch, today) } });
+
+  const toggle = (item: RoutineItem) => {
+    const task = item.taskId ? store.data.upkeep.find((t) => t.id === item.taskId) : undefined;
+    if (task) {
+      const when = item.date <= today ? item.date : today;
+      store.saveUpkeep(item.done ? unmarkDone(task, when) : markDone(task, when));
+    }
+    mark(item, { done: !item.done });
+  };
 
   return (
     <section className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-stone-200">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-semibold text-stone-900">This week's routine</h2>
+        <h2 className="font-semibold text-stone-900">{offset === 0 ? "This week's routine" : offset === 1 ? "Next week's routine" : offset === -1 ? "Last week's routine" : 'Weekly routine'}</h2>
         <button onClick={() => setEditing(true)} className="flex items-center gap-1 text-sm font-medium text-teal-700">
-          <Pencil size={14} /> {any ? 'Edit' : 'Set up'}
+          <Pencil size={14} /> Chores
         </button>
       </div>
-      {!any && <p className="text-sm text-stone-500">Set a chore for each day (clean the house, wash bedsheets, water the plants…) and see the whole week at once. It repeats every week.</p>}
+      <div className="mb-2 flex items-center justify-between text-sm text-stone-500">
+        <button onClick={() => setOffset(offset - 1)} className="rounded-lg p-1.5" aria-label="Previous week">
+          <ChevronLeft size={18} />
+        </button>
+        <span>
+          {friendlyDate(start, '').replace(/^\w+ /, '')} – {friendlyDate(addDays(start, 6), '').replace(/^\w+ /, '')}
+        </span>
+        <button onClick={() => setOffset(offset + 1)} className="rounded-lg p-1.5" aria-label="Next week">
+          <ChevronRight size={18} />
+        </button>
+      </div>
+      {!any && <p className="text-sm text-stone-500">Set a chore for each day under Chores, or choose weekdays on a repeating Home upkeep task (like sweeping twice a week). They all show here, and you can tick them off or move them to another day.</p>}
       {any && (
         <div className="divide-y divide-stone-100">
-          {week.map((w) => {
-            const d = parseLocalDate(w.date);
-            const isToday = w.date === today;
+          {week.map((items, i) => {
+            const date = addDays(start, i);
+            const d = parseLocalDate(date);
+            const isToday = date === today;
             return (
-              <div key={w.date} className={`flex items-center gap-3 py-2 ${isToday ? '-mx-2 rounded-xl bg-teal-50 px-2' : ''}`}>
-                <span className={`w-16 shrink-0 text-sm ${isToday ? 'font-semibold text-teal-800' : 'text-stone-500'}`}>
+              <div key={date} className={`flex items-start gap-3 py-2 ${isToday ? '-mx-2 rounded-xl bg-teal-50 px-2' : ''}`}>
+                <span className={`w-14 shrink-0 pt-0.5 text-sm ${isToday ? 'font-semibold text-teal-800' : 'text-stone-500'}`}>
                   {WEEKDAYS_SHORT[d.getDay()]} {d.getDate()}
                 </span>
-                <span className={`text-sm ${w.chore ? 'text-stone-800' : 'text-stone-300'}`}>{w.chore || '—'}</span>
+                <div className="min-w-0 flex-1 space-y-1">
+                  {items.length === 0 && <span className="text-sm text-stone-300">—</span>}
+                  {items.map((it) => (
+                    <div key={it.key + it.origDate} className="flex items-center gap-2">
+                      <button
+                        onClick={() => toggle(it)}
+                        className={`h-5 w-5 shrink-0 rounded-md border-2 ${it.done ? 'border-teal-600 bg-teal-600' : 'border-stone-300'}`}
+                        aria-label={it.done ? `Mark ${it.label} not done` : `Mark ${it.label} done`}
+                      >
+                        {it.done && <span className="block text-center text-[11px] leading-4 text-white">✓</span>}
+                      </button>
+                      <span className={`min-w-0 flex-1 text-sm ${it.done ? 'text-stone-400 line-through' : 'text-stone-800'}`}>
+                        {it.label}
+                        {it.moved && <span className="ml-1 text-xs text-amber-600">moved</span>}
+                      </span>
+                      <button onClick={() => setMoving(it)} className="p-1 text-stone-400" aria-label={`Move ${it.label} to another day`}>
+                        <ArrowRightLeft size={15} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
             );
           })}
         </div>
       )}
       {editing && <ChoresSheet onClose={() => setEditing(false)} />}
+      {moving && (
+        <Sheet title={`Move "${moving.label}"`} onClose={() => setMoving(null)}>
+          <div className="space-y-2">
+            {Array.from({ length: 7 }, (_, i) => {
+              const date = addDays(start, i);
+              const d = parseLocalDate(date);
+              return (
+                <button
+                  key={date}
+                  onClick={() => {
+                    mark(moving, { to: date });
+                    setMoving(null);
+                  }}
+                  className={`flex w-full justify-between rounded-xl px-4 py-3 text-left text-sm ring-1 ${date === moving.date ? 'bg-teal-50 ring-teal-600' : 'ring-stone-200'}`}
+                >
+                  <span className="text-stone-800">
+                    {WEEKDAYS[d.getDay()]} {d.getDate()}
+                  </span>
+                  <span className="text-xs text-stone-400">{date === moving.origDate ? 'original day' : date === moving.date ? 'now' : ''}</span>
+                </button>
+              );
+            })}
+          </div>
+        </Sheet>
+      )}
     </section>
   );
 }

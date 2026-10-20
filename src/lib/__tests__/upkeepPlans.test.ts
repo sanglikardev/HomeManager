@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import type { Plan, UpkeepTask } from '../../types';
-import { choreFor, entriesOn, entryCountsByDay, monthGrid, weekChores, weekStart } from '../calendar';
+import { choreFor, entriesOn, entryCountsByDay, monthGrid, routineWeek, weekChores, weekStart, withMark } from '../calendar';
 import { activeTrip, buildChecklist, dueTasks, holdPerishables } from '../plans';
-import { markDone, nextDue, sortByUrgency, upkeepStatus } from '../upkeep';
+import { markDone, nextDue, unmarkDone, sortByUrgency, upkeepStatus } from '../upkeep';
 
 const task = (p: Partial<UpkeepTask>): UpkeepTask => ({
   id: 'x', name: 'Task', category: 'home', kind: 'recurring', intervalDays: 30, lastDone: null, dueDate: null, remindDays: 7, details: {}, history: [], notes: '', ...p,
@@ -74,5 +74,37 @@ describe('calendar', () => {
     expect(week[0].date).toBe('2026-10-19');
     expect(week[6]).toEqual({ date: '2026-10-25', chore: 'Rest' });
     expect(choreFor({}, '2026-10-20')).toBe('');
+  });
+});
+
+describe('weekly routine with upkeep', () => {
+  const sweep = task({ id: 'sw', name: 'Sweep the house', weekdays: [1, 4] });
+  const settings = { weeklyChores: ['', 'Clean house', '', '', '', '', ''] };
+  it('puts weekday upkeep tasks next to the chores', () => {
+    const week = routineWeek(settings, [sweep, task({ id: 'x', weekdays: [2], kind: 'renewal' })], '2026-10-19');
+    expect(week[0].map((i) => i.label)).toEqual(['Clean house', 'Sweep the house']); // Monday
+    expect(week[3].map((i) => i.label)).toEqual(['Sweep the house']); // Thursday
+    expect(week[1]).toEqual([]); // renewals never show
+  });
+  it('moves and ticks off one occurrence only', () => {
+    let state = withMark(undefined, 'u:sw', '2026-10-19', { to: '2026-10-21' }, '2026-10-20');
+    state = withMark(state, 'u:sw', '2026-10-22', { done: true }, '2026-10-20');
+    const week = routineWeek({ ...settings, weekState: state }, [sweep], '2026-10-19');
+    expect(week[0].map((i) => i.label)).toEqual(['Clean house']);
+    expect(week[2][0]).toMatchObject({ label: 'Sweep the house', moved: true, origDate: '2026-10-19' });
+    expect(week[3][0].done).toBe(true);
+    expect(routineWeek({ ...settings, weekState: state }, [sweep], '2026-10-26')[0].some((i) => i.moved || i.done)).toBe(false);
+  });
+  it('drops marks that are reset or very old', () => {
+    let state = withMark(undefined, 'c:1', '2026-10-19', { done: true }, '2026-10-20');
+    state = withMark(state, 'c:1', '2026-10-19', { done: false }, '2026-10-20');
+    expect(state).toEqual({});
+    const old = withMark({ 'c:1@2026-01-05': { done: true } }, 'c:2', '2026-10-20', { done: true }, '2026-10-20');
+    expect(Object.keys(old)).toEqual(['c:2@2026-10-20']);
+  });
+  it('unmarking an upkeep task restores its previous last-done date', () => {
+    const t = markDone(markDone(task({}), '2026-10-15'), '2026-10-19');
+    const u = unmarkDone(t, '2026-10-19');
+    expect(u.lastDone).toBe('2026-10-15');
   });
 });

@@ -1,6 +1,6 @@
 import { Plus, Trash2, X } from 'lucide-react';
 import { useState } from 'react';
-import { addDays, friendlyDate, localDate } from '../lib/dates';
+import { addDays, friendlyDate, localDate, WEEKDAYS_SHORT } from '../lib/dates';
 import { uid } from '../lib/id';
 import { markDone, nextDue } from '../lib/upkeep';
 import { useStore } from '../store/store';
@@ -100,6 +100,26 @@ export function UpkeepSheet({ task, onClose }: { task: UpkeepTask | null; onClos
                 onChange={(e) => set({ intervalDays: Number(e.target.value.replace(/\D/g, '')) || null })}
               />
               <span className="text-sm text-stone-600">days</span>
+            </div>
+          </Field>
+          <Field label="Show in the weekly routine on" hint="Pick the days, e.g. Mon and Thu for twice a week. You can tick it off or move it from the Plans tab.">
+            <div className="flex gap-1.5">
+              {[1, 2, 3, 4, 5, 6, 0].map((d) => {
+                const on = draft.weekdays?.includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => {
+                      const days = on ? (draft.weekdays ?? []).filter((x) => x !== d) : [...(draft.weekdays ?? []), d];
+                      set({ weekdays: days, ...(days.length ? { intervalDays: Math.max(1, Math.round(7 / days.length)) } : {}) });
+                    }}
+                    className={`flex-1 rounded-lg py-2 text-xs font-medium ${on ? 'bg-teal-700 text-white' : 'bg-stone-100 text-stone-700'}`}
+                  >
+                    {WEEKDAYS_SHORT[d]}
+                  </button>
+                );
+              })}
             </div>
           </Field>
           <Field label="Last done" hint={next ? `Next due ${friendlyDate(next).toLowerCase()} (${next})` : 'Set this to start the countdown.'}>

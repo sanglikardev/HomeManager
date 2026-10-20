@@ -53,3 +53,9 @@ export function sortByUrgency(tasks: UpkeepTask[], today: string): UpkeepTask[] 
       a.name.localeCompare(b.name),
   );
 }
+
+// Undoes markDone for a recurring task: drops that date from the history.
+export function unmarkDone(task: UpkeepTask, date: string): UpkeepTask {
+  const history = task.history.filter((d) => d !== date);
+  return { ...task, history, lastDone: history[0] ?? null };
+}
