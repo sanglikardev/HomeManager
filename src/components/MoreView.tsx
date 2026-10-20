@@ -1,11 +1,12 @@
-import { ArrowLeft, Copy, LogOut, MessageSquare, Users } from 'lucide-react';
-import { useState } from 'react';
+import { ArrowLeft, Bell, Copy, LogOut, MessageSquare, Users } from 'lucide-react';
+import { useEffect, useState } from 'react';
 import { resetLocalData, signOut } from '../store/backend';
+import { disablePush, enablePush, pushStatus, pushSupport, sendTestPush } from '../store/push';
 import { useStore } from '../store/store';
 import { FeedbackSheet } from './FeedbackSheet';
 import { HouseholdForm } from './HouseholdForm';
 import { useToast } from './toast';
-import { ConfirmButton, Field, inputCls } from './ui';
+import { ConfirmButton, Field, inputCls, Toggle } from './ui';
 
 export function MoreView({ onBack }: { onBack?: () => void }) {
   const store = useStore();
@@ -71,6 +72,7 @@ export function MoreView({ onBack }: { onBack?: () => void }) {
       </Group>
 
       <Group title="App">
+      {cloud && <NotificationsCard />}
       {cloud && (
         <button onClick={() => setFeedback(true)} className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left ring-1 ring-stone-200">
           <MessageSquare size={18} className="text-teal-700" />
@@ -99,6 +101,65 @@ export function MoreView({ onBack }: { onBack?: () => void }) {
       )}
       </Group>
     </div>
+  );
+}
+
+function NotificationsCard() {
+  const toast = useToast();
+  const support = pushSupport();
+  const [state, setState] = useState<{ on: boolean; hour: number } | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    if (support === 'ok') pushStatus().then(setState, () => setState({ on: false, hour: 8 }));
+  }, [support]);
+  const run = async (fn: () => Promise<unknown>) => {
+    setBusy(true);
+    try {
+      await fn();
+      setState(await pushStatus());
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="rounded-2xl bg-white p-4 ring-1 ring-stone-200">
+      <h2 className="mb-1 flex items-center gap-2 font-semibold">
+        <Bell size={18} className="text-teal-700" /> Notifications
+      </h2>
+      {support === 'install' ? (
+        <p className="text-sm text-stone-600">On iPhone, first add this app to the Home Screen (Share, then "Add to Home Screen"), open it from there, and turn notifications on here.</p>
+      ) : support === 'unsupported' ? (
+        <p className="text-sm text-stone-600">This browser can't show notifications. Try Chrome on Android, or the app added to the Home Screen on iPhone.</p>
+      ) : (
+        <>
+          <p className="mb-3 text-sm text-stone-600">One summary a morning on this phone: bills and upkeep due, documents expiring, help on leave, things to buy. Nothing if the day is clear.</p>
+          <Toggle
+            on={!!state?.on}
+            label={state?.on ? 'On for this phone' : 'Off on this phone'}
+            onChange={(v) => !busy && run(() => (v ? enablePush(state?.hour ?? 8) : disablePush()))}
+          />
+          {state?.on && (
+            <div className="mt-3 flex items-center gap-2">
+              <label htmlFor="push-hour" className="text-sm text-stone-600">
+                Send at
+              </label>
+              <select id="push-hour" className={`${inputCls} w-auto`} value={state.hour} disabled={busy} onChange={(e) => run(() => enablePush(Number(e.target.value)))}>
+                {[6, 7, 8, 9, 10, 18, 20].map((h) => (
+                  <option key={h} value={h}>
+                    {h < 12 ? `${h} am` : `${h - 12} pm`}
+                  </option>
+                ))}
+              </select>
+              <button onClick={() => sendTestPush().then((m) => toast(m))} className="ml-auto text-sm font-medium text-teal-700">
+                Send a test
+              </button>
+            </div>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 

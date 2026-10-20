@@ -1,7 +1,7 @@
 // Cloudflare Worker: serves the built app as static assets, and runs worker/index.ts
 // only for /api/* (the feedback "Start Claude" button).
 // Workers Builds runs `npm run build`, then `npx wrangler deploy`.
-// Secrets are set in the Cloudflare dashboard, never here: CLAUDE_FIRE_URL, CLAUDE_FIRE_TOKEN.
+// Secrets are set in the Cloudflare dashboard, never here: CLAUDE_FIRE_URL, CLAUDE_FIRE_TOKEN, PUSH_SECRET.
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "homemanager",
@@ -17,6 +17,8 @@
     "SUPABASE_URL": "https://akrkcyeivtpnqlowzsvb.supabase.co",
     "SUPABASE_KEY": "sb_publishable_URv1xNli2xpo_jaZEfW7fA_HvhlU_Yx"
   },
+  // Hourly check for morning notification summaries.
+  "triggers": { "crons": ["0 * * * *"] },
   // Keep variables added in the dashboard when deploying.
   "keep_vars": true
 }

@@ -2,6 +2,10 @@
 // owner's Claude scheduled task on new feedback. It needs the owner home's
 // session and the master password (both checked in hm_feedback_request_run).
 // The Claude token lives only here, as Worker secrets.
+// POST /api/push/test and the hourly cron send phone notifications (worker/push.ts);
+// they need the PUSH_SECRET Worker secret, whose sha256 is in hm_config.
+
+import { sendPush, type PushTarget } from './push';
 
 interface Env {
   ASSETS: { fetch: (req: Request) => Promise<Response> };
@@ -9,6 +13,43 @@ interface Env {
   SUPABASE_KEY: string; // publishable key, same one the app uses
   CLAUDE_FIRE_URL?: string; // secret: the scheduled task's Fire URL
   CLAUDE_FIRE_TOKEN?: string; // secret: the scheduled task's API token
+  PUSH_SECRET?: string; // secret: lets the Worker read due notifications (hm_push_due)
+}
+
+const PUSH_SUBJECT = 'https://homemanager.sanglikardev.workers.dev';
+
+interface PushBatch {
+  vapid: JsonWebKey | null;
+  items: (PushTarget & { id: string; title: string; body: string })[];
+}
+
+// Sends a batch; subscriptions the push service no longer knows are switched off.
+async function deliver(env: Env, batch: PushBatch): Promise<{ sent: number; failed: number }> {
+  if (!batch.vapid || !batch.items.length) return { sent: 0, failed: 0 };
+  const gone: string[] = [];
+  let sent = 0;
+  let failed = 0;
+  for (const it of batch.items) {
+    try {
+      const status = await sendPush(it, { title: it.title, body: it.body, url: '/' }, batch.vapid, PUSH_SUBJECT);
+      if (status === 404 || status === 410) gone.push(it.id);
+      else if (status >= 200 && status < 300) sent++;
+      else failed++;
+    } catch {
+      failed++;
+    }
+  }
+  if (gone.length) await rpc(env, 'hm_push_gone', { p_secret: env.PUSH_SECRET, p_ids: gone });
+  return { sent, failed };
+}
+
+async function pushTest(req: Request, env: Env): Promise<Response> {
+  if (!env.PUSH_SECRET) return json({ ok: false, reason: 'not_configured' });
+  const { token } = (await req.json().catch(() => ({}))) as { token?: string };
+  if (!token) return json({ ok: false, reason: 'signin' });
+  const batch = (await rpc(env, 'hm_push_test', { p_secret: env.PUSH_SECRET, p_token: token })) as unknown as PushBatch;
+  if (!batch.items.length) return json({ ok: false, reason: 'no_subscription' });
+  return json({ ok: true, ...(await deliver(env, batch)) });
 }
 
 const json = (body: unknown, status = 200) =>
@@ -60,6 +101,22 @@ export default {
         return json({ ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) }, 500);
       }
     }
+    if (url.pathname === '/api/push/test') {
+      if (req.method !== 'POST') return json({ ok: false }, 405);
+      try {
+        return await pushTest(req, env);
+      } catch (e) {
+        return json({ ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) }, 500);
+      }
+    }
     return env.ASSETS.fetch(req);
+  },
+
+  // Hourly: morning summaries whose local hour has come.
+  async scheduled(_event: unknown, env: Env, ctx: { waitUntil: (p: Promise<unknown>) => void }) {
+    if (!env.PUSH_SECRET) return;
+    ctx.waitUntil(
+      rpc(env, 'hm_push_due', { p_secret: env.PUSH_SECRET }).then((b) => deliver(env, b as unknown as PushBatch)),
+    );
   },
 };
