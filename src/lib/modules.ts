@@ -49,3 +49,26 @@ export function toggled<T>(list: T[] | undefined, value: T): T[] {
   const l = list ?? [];
   return l.includes(value) ? l.filter((v) => v !== value) : [...l, value];
 }
+
+// Steps of the first-time setup. The kitchen questions only make sense when Kitchen is on.
+export type SetupStep = 'home' | 'modules' | 'dishes' | 'pantry';
+export function setupSteps(settings: Pick<HouseholdSettings, 'disabledModules'>): SetupStep[] {
+  return moduleOn(settings, 'food') ? ['home', 'modules', 'dishes', 'pantry'] : ['home', 'modules'];
+}
+
+// The welcome tour: one slide per idea, only for the tabs this home uses.
+export interface TourSlide {
+  title: string;
+  text: string;
+}
+export function tourSlides(settings: Layout): TourSlide[] {
+  const slides: TourSlide[] = [
+    { title: 'Today is your home base', text: 'One screen with what needs you right now: bills due, what to cook next, and your to-do list. Open it each morning.' },
+  ];
+  if (moduleOn(settings, 'food')) slides.push({ title: 'Kitchen', text: 'Keep a shopping list you can send on WhatsApp, track what is in your pantry, and get meal ideas from the dishes you cook.' });
+  if (moduleOn(settings, 'home')) slides.push({ title: 'Home', text: 'Upkeep reminders, a weekly routine, household help with salary and days off, and documents like warranties and IDs.' });
+  if (moduleOn(settings, 'money')) slides.push({ title: 'Money', text: 'See what you spent this month, set a budget, and never miss a recurring bill.' });
+  if (moduleOn(settings, 'plans') || moduleOn(settings, 'todos')) slides.push({ title: 'Plans and to-dos', text: 'Plans, trips and tasks with due dates all show up on one calendar.' });
+  slides.push({ title: 'The + button adds anything', text: 'Tap + at the bottom right to add an expense, shopping item, task, plan or document. Settings (the gear on Today) lets you change tabs any time, and you can replay this tour there.' });
+  return slides;
+}

@@ -33,3 +33,20 @@ describe('modules', () => {
     expect(toggled(['a', 'b'], 'a')).toEqual(['b']);
   });
 });
+
+import { setupSteps, tourSlides } from '../modules';
+describe('onboarding', () => {
+  it('skips kitchen questions when Kitchen is off', () => {
+    expect(setupSteps({})).toEqual(['home', 'modules', 'dishes', 'pantry']);
+    expect(setupSteps({ disabledModules: ['food'] })).toEqual(['home', 'modules']);
+  });
+  it('tour only covers tabs that are on', () => {
+    const all = tourSlides({}).map((s) => s.title);
+    expect(all).toContain('Kitchen');
+    const some = tourSlides({ disabledModules: ['food', 'money'] }).map((s) => s.title);
+    expect(some).not.toContain('Kitchen');
+    expect(some).not.toContain('Money');
+    expect(some[0]).toBe('Today is your home base');
+    expect(some[some.length - 1]).toBe('The + button adds anything');
+  });
+});

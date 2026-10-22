@@ -3,12 +3,13 @@ import { useMemo, useState } from 'react';
 import { seedDishes, seedItems } from '../data/seed';
 import { SEED_DISHES } from '../data/seedDishes';
 import { inviteCode, uid } from '../lib/id';
+import { MODULES, moduleOn, setupSteps, toggled, type SetupStep } from '../lib/modules';
 import { allowedByDiet } from '../lib/suggest';
 import { CATEGORIES, DEFAULT_SETTINGS, NONVEG_TAGS, type AppData, type Dish, type HouseholdSettings } from '../types';
 import { HouseholdForm } from './HouseholdForm';
-import { Field, inputCls, LevelPicker, PrimaryButton } from './ui';
+import { Field, inputCls, LevelPicker, PrimaryButton, Toggle } from './ui';
 
-type Step = 'home' | 'dishes' | 'pantry';
+type Step = SetupStep;
 
 export function SetupWizard({ onDone, busy }: { onDone: (data: AppData) => void; busy?: boolean }) {
   const [step, setStep] = useState<Step>('home');
@@ -16,6 +17,7 @@ export function SetupWizard({ onDone, busy }: { onDone: (data: AppData) => void;
   const [settings, setSettings] = useState<HouseholdSettings>(DEFAULT_SETTINGS);
   const [chosen, setChosen] = useState<Set<string>>(() => new Set(SEED_DISHES.filter((d) => d.common).map((d) => d.name)));
   const [items] = useState(() => seedItems());
+  const steps = setupSteps(settings);
   const [levels, setLevels] = useState<Record<string, number>>({});
 
   // Dishes the diet allows, shaped like real dishes so the diet check is shared.
@@ -68,7 +70,7 @@ export function SetupWizard({ onDone, busy }: { onDone: (data: AppData) => void;
           <Home size={24} />
         </div>
       )}
-      <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Step {step === 'home' ? 1 : step === 'dishes' ? 2 : 3} of 3</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-teal-700">Step {steps.indexOf(step) + 1} of {steps.length}</p>
       <h1 className="text-2xl font-bold text-stone-900">{title}</h1>
       <p className="mt-1 text-sm text-stone-600">{sub}</p>
     </div>
@@ -84,16 +86,41 @@ export function SetupWizard({ onDone, busy }: { onDone: (data: AppData) => void;
           </Field>
           <HouseholdForm settings={settings} onChange={setSettings} />
           <BottomBar>
-            <PrimaryButton className="w-full" onClick={() => setStep('dishes')}>
-              Next: your usual dishes
+            <PrimaryButton className="w-full" onClick={() => setStep('modules')}>
+              Next: choose what to use
             </PrimaryButton>
+          </BottomBar>
+        </>
+      )}
+
+      {step === 'modules' && (
+        <>
+          {header('What would you like to use?', 'Switch on the parts that matter to you. Today is always there. You can change this any time in Settings.', 'home')}
+          <section className="space-y-3 rounded-2xl bg-white p-4 ring-1 ring-stone-200">
+            {MODULES.map((m) => (
+              <div key={m.id}>
+                <Toggle on={moduleOn(settings, m.id)} label={m.label} onChange={() => setSettings((s) => ({ ...s, disabledModules: toggled(s.disabledModules, m.id) }))} />
+                <p className="text-xs text-stone-500">{m.hint}</p>
+              </div>
+            ))}
+          </section>
+          <BottomBar>
+            {moduleOn(settings, 'food') ? (
+              <PrimaryButton className="w-full" onClick={() => setStep('dishes')}>
+                Next: your usual dishes
+              </PrimaryButton>
+            ) : (
+              <PrimaryButton className="w-full" onClick={finish} disabled={busy}>
+                {busy ? 'Setting up…' : 'Finish'}
+              </PrimaryButton>
+            )}
           </BottomBar>
         </>
       )}
 
       {step === 'dishes' && (
         <>
-          {header('What do you usually cook?', 'Tick the dishes you make at home. I suggest only from these, and you can add your own later.', 'home')}
+          {header('What do you usually cook?', 'Tick the dishes you make at home. I suggest only from these, and you can add your own later.', 'modules')}
           {(['breakfast', 'lunch', 'dinner'] as const).map((slot) => {
             const list = dietDishes.filter((d) => d.slots[0] === slot);
             if (!list.length) return null;

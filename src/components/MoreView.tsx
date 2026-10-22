@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowDown, ArrowUp, Bell, Copy, LogOut, MessageSquare, Smartphone, Users } from 'lucide-react';
+import { ArrowLeft, ArrowDown, ArrowUp, Bell, Copy, Info, LogOut, MessageSquare, Smartphone, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { moduleOn, MODULES, moveCard, TODAY_CARDS, todayOrder, toggled } from '../lib/modules';
 import { widgetScript } from '../lib/widget';
@@ -10,7 +10,7 @@ import { HouseholdForm } from './HouseholdForm';
 import { useToast } from './toast';
 import { ConfirmButton, Field, inputCls, Toggle } from './ui';
 
-export function MoreView({ onBack }: { onBack?: () => void }) {
+export function MoreView({ onBack, onTour }: { onBack?: () => void; onTour?: () => void }) {
   const store = useStore();
   const toast = useToast();
   const { household } = store.data;
@@ -82,6 +82,15 @@ export function MoreView({ onBack }: { onBack?: () => void }) {
       </Group>
 
       <Group title="App">
+      {onTour && (
+        <button onClick={onTour} className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left ring-1 ring-stone-200">
+          <Info size={18} className="text-teal-700" />
+          <div className="flex-1">
+            <p className="font-semibold">Take the tour</p>
+            <p className="text-xs text-stone-500">A quick look at what the app can do</p>
+          </div>
+        </button>
+      )}
       {cloud && <NotificationsCard />}
       {cloud && <WidgetCard />}
       {cloud && (

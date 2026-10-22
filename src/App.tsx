@@ -17,6 +17,7 @@ import { SetupWizard } from './components/SetupWizard';
 import { ShoppingView } from './components/ShoppingView';
 import { TodayView } from './components/TodayView';
 import { TodosView } from './components/TodosView';
+import { setTourPending, tourPending, WelcomeTour } from './components/WelcomeTour';
 import { ToastProvider } from './components/toast';
 import { inputCls, PrimaryButton, SecondaryButton, Segmented } from './components/ui';
 import { CloudBackend, getToken, LocalBackend, signOut, supabaseConfigured, type Backend } from './store/backend';
@@ -74,6 +75,7 @@ export default function App() {
     setBusy(true);
     try {
       const saved = await backend.createHousehold(data);
+      setTourPending(true);
       setBoot({ state: 'ready', data: saved });
     } catch (e) {
       setBoot({ state: 'error', message: e instanceof Error ? e.message : String(e) });
@@ -91,7 +93,10 @@ export default function App() {
       body = <LoginScreen />;
       break;
     case 'nohousehold':
-      body = <JoinOrCreate backend={backend} onCreate={() => setBoot({ state: 'setup' })} onJoined={load} />;
+      body = <JoinOrCreate backend={backend} onCreate={() => setBoot({ state: 'setup' })} onJoined={() => {
+          setTourPending(true);
+          load();
+        }} />;
       break;
     case 'setup':
       body = <SetupWizard onDone={create} busy={busy} />;
@@ -191,6 +196,11 @@ function Shell() {
   const [home, setHome] = useState<HomePage>(start.home ?? 'upkeep');
   const [feedback, setFeedback] = useState(false);
   const [adding, setAdding] = useState(false);
+  const [tour, setTour] = useState(tourPending);
+  const closeTour = () => {
+    setTourPending(false);
+    setTour(false);
+  };
   const replies = useFeedbackReplies(store.backend.mode === 'cloud');
   useEffect(() => {
     history.replaceState(null, '', `#${tab === 'food' ? food : tab === 'home' ? home : tab}`);
@@ -268,8 +278,9 @@ function Shell() {
         {tab === 'todos' && <TodosView />}
         {tab === 'plans' && <PlansView />}
         {tab === 'money' && <MoneyView />}
-        {tab === 'more' && <MoreView onBack={() => setTab('today')} />}
+        {tab === 'more' && <MoreView onBack={() => setTab('today')} onTour={() => setTour(true)} />}
       </main>
+      {tour && <WelcomeTour settings={settings} onClose={closeTour} />}
       {feedback && <FeedbackSheet onClose={() => setFeedback(false)} />}
       {adding && <QuickAdd onClose={() => setAdding(false)} onGo={go} />}
       {tab !== 'more' && (
