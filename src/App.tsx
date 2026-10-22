@@ -207,7 +207,7 @@ function Shell() {
   const dueUpkeep = store.data.upkeep.filter((t) => upkeepStatus(t, today) === 'overdue').length;
   const tabs: { id: Tab; label: string; icon: typeof Settings; badge?: number; badgeCls?: string }[] = [
     { id: 'today', label: 'Today', icon: CalendarCheck },
-    { id: 'food', label: 'Food', icon: ChefHat, badge: needed },
+    { id: 'food', label: 'Kitchen', icon: ChefHat, badge: needed },
     { id: 'home', label: 'Home', icon: House, badge: dueUpkeep, badgeCls: 'bg-rose-500' },
     { id: 'plans', label: 'Plans', icon: CalendarDays },
     { id: 'money', label: 'Money', icon: Wallet },

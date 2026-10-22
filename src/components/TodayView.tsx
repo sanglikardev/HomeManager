@@ -99,7 +99,7 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
     if (!list.length)
       return (
         <div className="rounded-2xl border border-dashed border-stone-300 bg-white p-4 text-sm text-stone-500">
-          No {SLOT_LABEL[slot].toLowerCase()} dishes in your rotation yet. Add some under Food, Dishes.
+          No {SLOT_LABEL[slot].toLowerCase()} dishes in your rotation yet. Add some under Kitchen, Dishes.
           <button onClick={() => setPicker(slot)} className="mt-2 block font-medium text-teal-700">
             {preview ? 'Choose from all dishes' : 'Log what you ate'}
           </button>
