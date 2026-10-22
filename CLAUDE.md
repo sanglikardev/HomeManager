@@ -95,8 +95,9 @@ Check the result with the GitHub check run on the commit.
   `hm_push_test(secret, token)` return the VAPID private JWK from hm_config plus messages;
   the secret is the `PUSH_SECRET` Worker secret, checked against hm_config `push_secret_hash`.
 - iPhone widget: Settings > App > iPhone widget makes a key (`hm_widget_key`, sha256 in
-  `hm_widget_keys`) and a Scriptable script (`src/lib/widget.ts`) that reads
-  `GET /api/widget?k=` (Worker -> `hm_widget`).
+  `hm_widget_keys`) and a small Scriptable loader script. The loader fetches the layout
+  (`WIDGET_BODY` in `src/lib/widget.ts`, served at `/api/widget.js`) and the data from
+  `GET /api/widget?k=` (Worker -> `hm_widget`), so layout changes need no re-paste.
 - Save every schema change as the next numbered file in `supabase/migrations/`.
 - Changes containing DROP/DELETE/REVOKE need a human to approve in Supabase; the
   connector's apply_migration times out waiting. Give such SQL to the owner to run in the

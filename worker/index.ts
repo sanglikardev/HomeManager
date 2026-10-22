@@ -5,6 +5,7 @@
 // POST /api/push/test and the hourly cron send phone notifications (worker/push.ts);
 // they need the PUSH_SECRET Worker secret, whose sha256 is in hm_config.
 
+import { WIDGET_BODY } from '../src/lib/widget';
 import { sendPush, type PushTarget } from './push';
 
 interface Env {
@@ -102,6 +103,9 @@ export default {
       }
     }
     // iPhone widget (Scriptable): a small summary for the home whose widget key this is.
+    if (url.pathname === '/api/widget.js') {
+      return new Response(WIDGET_BODY, { headers: { 'content-type': 'text/javascript; charset=utf-8', 'cache-control': 'max-age=300' } });
+    }
     if (url.pathname === '/api/widget') {
       try {
         const out = await rpc(env, 'hm_widget', { p_key: url.searchParams.get('k') ?? '' });
