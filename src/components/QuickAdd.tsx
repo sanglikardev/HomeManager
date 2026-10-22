@@ -1,5 +1,6 @@
 import { Bug, CalendarDays, FileText, IndianRupee, ShoppingCart, UserRound, Wrench } from 'lucide-react';
 import { useState } from 'react';
+import { moduleOn, type ModuleId } from '../lib/modules';
 import { useStore } from '../store/store';
 import type { Bucket } from '../types';
 import { DocSheet } from './DocsView';
@@ -31,15 +32,16 @@ export function QuickAdd({ onClose, onGo }: { onClose: () => void; onGo: (to: De
   if (what === 'leave') return <QuickLeaveSheet onClose={done} />;
   if (what === 'feedback') return <FeedbackSheet onClose={done} />;
 
-  const options: { id: What; label: string; hint: string; icon: typeof Bug; cls: string }[] = [
-    { id: 'expense', label: 'Expense', hint: 'Money spent', icon: IndianRupee, cls: 'bg-teal-50 text-teal-700' },
-    { id: 'shopping', label: 'To buy', hint: 'Shopping list', icon: ShoppingCart, cls: 'bg-amber-50 text-amber-700' },
-    { id: 'upkeep', label: 'Upkeep task', hint: 'Repeats or renews', icon: Wrench, cls: 'bg-rose-50 text-rose-700' },
-    { id: 'plan', label: 'Plan or trip', hint: 'With a checklist', icon: CalendarDays, cls: 'bg-sky-50 text-sky-700' },
-    { id: 'doc', label: 'Document', hint: 'Warranty, ID, policy', icon: FileText, cls: 'bg-indigo-50 text-indigo-700' },
+  const all: { id: What; label: string; hint: string; icon: typeof Bug; cls: string; module?: ModuleId }[] = [
+    { id: 'expense', label: 'Expense', hint: 'Money spent', icon: IndianRupee, cls: 'bg-teal-50 text-teal-700', module: 'money' },
+    { id: 'shopping', label: 'To buy', hint: 'Shopping list', icon: ShoppingCart, cls: 'bg-amber-50 text-amber-700', module: 'food' },
+    { id: 'upkeep', label: 'Upkeep task', hint: 'Repeats or renews', icon: Wrench, cls: 'bg-rose-50 text-rose-700', module: 'home' },
+    { id: 'plan', label: 'Plan or trip', hint: 'With a checklist', icon: CalendarDays, cls: 'bg-sky-50 text-sky-700', module: 'plans' },
+    { id: 'doc', label: 'Document', hint: 'Warranty, ID, policy', icon: FileText, cls: 'bg-indigo-50 text-indigo-700', module: 'home' },
   ];
-  if (store.data.staff.some((s) => s.active)) options.push({ id: 'leave', label: 'Help day off', hint: 'Full or half day', icon: UserRound, cls: 'bg-stone-100 text-stone-700' });
-  if (store.backend.mode === 'cloud') options.push({ id: 'feedback', label: 'Bug or idea', hint: 'For the app', icon: Bug, cls: 'bg-violet-50 text-violet-700' });
+  if (store.data.staff.some((s) => s.active)) all.push({ id: 'leave', label: 'Help day off', hint: 'Full or half day', icon: UserRound, cls: 'bg-stone-100 text-stone-700', module: 'home' });
+  if (store.backend.mode === 'cloud') all.push({ id: 'feedback', label: 'Bug or idea', hint: 'For the app', icon: Bug, cls: 'bg-violet-50 text-violet-700' });
+  const options = all.filter((o) => !o.module || moduleOn(store.data.household.settings, o.module));
 
   return (
     <Sheet title="Add" onClose={onClose}>

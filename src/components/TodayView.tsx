@@ -1,11 +1,12 @@
 import { CalendarDays, Check, ChefHat, ChevronDown, Clock, HelpCircle, Plus, RotateCcw, Send, ShoppingCart, Sparkles, Undo2, UserRound, UtensilsCrossed, Wallet } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { Fragment, useMemo, useState } from 'react';
 import { addDays, localDate, parseLocalDate, WEEKDAYS } from '../lib/dates';
 import { billsDue, budgetState, monthOf, summarize } from '../lib/money';
 import { activeTrip, countdown, upcomingPlans } from '../lib/plans';
 import { pickQuestions, type Question } from '../lib/questions';
 import { suggest, type Suggestion } from '../lib/suggest';
 import { offToday } from '../lib/staff';
+import { moduleOn, todayCards, type CardId } from '../lib/modules';
 import { mealLine, mealPlanOfDay, menuText } from '../lib/today';
 import { useStore } from '../store/store';
 import type { MealLog, Slot } from '../types';
@@ -124,47 +125,46 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
     );
   };
 
-  return (
-    <div className="space-y-5">
-      <header>
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <p className="text-sm text-stone-500">{greeting}</p>
-            <h1 className="text-2xl font-bold text-stone-900">{longDate(today)}</h1>
-          </div>
-          <div className="shrink-0">{actions}</div>
-        </div>
-        {(billCount > 0 || neededCount > 0 || nextPlan || budgetWarn || off.length > 0) && (
-          <div className="mt-2 flex flex-wrap gap-1.5">
-            {billCount > 0 && (
-              <Chip onClick={() => onGo('money')} cls="bg-rose-50 text-rose-800 ring-rose-200">
-                <Wallet size={13} /> {billCount} bill{billCount > 1 ? 's' : ''} due
-              </Chip>
-            )}
-            {budgetWarn && (
-              <Chip onClick={() => onGo('money')} cls="bg-rose-50 text-rose-800 ring-rose-200">
-                <Wallet size={13} /> {budgetWarn.level === 'over' ? 'Over budget' : `${budgetWarn.pct}% of budget used`}
-              </Chip>
-            )}
-            {neededCount > 0 && (
-              <Chip onClick={() => onGo('shopping')} cls="bg-amber-50 text-amber-900 ring-amber-200">
-                <ShoppingCart size={13} /> {neededCount} to buy
-              </Chip>
-            )}
-            {off.map((o) => (
-              <Chip key={o.staff.id} onClick={() => onGo('help')} cls="bg-stone-100 text-stone-700 ring-stone-200">
-                <UserRound size={13} /> {o.staff.name} {o.kind === 'half' ? 'half day today' : 'off today'}
-              </Chip>
-            ))}
-            {nextPlan && (
-              <Chip onClick={() => onGo('plans')} cls="bg-sky-50 text-sky-900 ring-sky-200">
-                <CalendarDays size={13} /> {nextPlan.title} · {countdown(nextPlan, today).toLowerCase()}
-              </Chip>
-            )}
-          </div>
-        )}
-      </header>
+  const cards = todayCards(settings);
+  const showBills = moduleOn(settings, 'money') && billCount > 0;
+  const showBudget = moduleOn(settings, 'money') && !!budgetWarn;
+  const showBuy = moduleOn(settings, 'food') && neededCount > 0;
+  const showOff = moduleOn(settings, 'home') && off.length > 0;
+  const showPlan = moduleOn(settings, 'plans') && !!nextPlan;
 
+  const blocks: Record<CardId, React.ReactNode> = {
+    status:
+      showBills || showBudget || showBuy || showOff || showPlan ? (
+        <div className="flex flex-wrap gap-1.5">
+          {showBills && (
+            <Chip onClick={() => onGo('money')} cls="bg-rose-50 text-rose-800 ring-rose-200">
+              <Wallet size={13} /> {billCount} bill{billCount > 1 ? 's' : ''} due
+            </Chip>
+          )}
+          {showBudget && (
+            <Chip onClick={() => onGo('money')} cls="bg-rose-50 text-rose-800 ring-rose-200">
+              <Wallet size={13} /> {budgetWarn.level === 'over' ? 'Over budget' : `${budgetWarn.pct}% of budget used`}
+            </Chip>
+          )}
+          {showBuy && (
+            <Chip onClick={() => onGo('shopping')} cls="bg-amber-50 text-amber-900 ring-amber-200">
+              <ShoppingCart size={13} /> {neededCount} to buy
+            </Chip>
+          )}
+          {(showOff ? off : []).map((o) => (
+            <Chip key={o.staff.id} onClick={() => onGo('help')} cls="bg-stone-100 text-stone-700 ring-stone-200">
+              <UserRound size={13} /> {o.staff.name} {o.kind === 'half' ? 'half day today' : 'off today'}
+            </Chip>
+          ))}
+          {showPlan && (
+            <Chip onClick={() => onGo('plans')} cls="bg-sky-50 text-sky-900 ring-sky-200">
+              <CalendarDays size={13} /> {nextPlan.title} · {countdown(nextPlan, today).toLowerCase()}
+            </Chip>
+          )}
+        </div>
+      ) : null,
+    meals: (
+      <>
       {away && <AwayCard date={date} />}
 
       {!away && (
@@ -240,10 +240,27 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
           )}
         </section>
       )}
+      </>
+    ),
+    quick: !away && !preview && questions.length > 0 ? <QuestionsCard questions={questions} /> : null,
+    todo: <TodoCard date={date} onGo={onGo} />,
+  };
 
-      {!away && !preview && questions.length > 0 && <QuestionsCard questions={questions} />}
+  return (
+    <div className="space-y-5">
+      <header>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <p className="text-sm text-stone-500">{greeting}</p>
+            <h1 className="text-2xl font-bold text-stone-900">{longDate(today)}</h1>
+          </div>
+          <div className="shrink-0">{actions}</div>
+        </div>
+      </header>
 
-      <TodoCard date={date} onGo={onGo} />
+      {cards.map((id) => (
+        <Fragment key={id}>{blocks[id]}</Fragment>
+      ))}
 
       {picker && <MealPickerSheet slot={picker} date={date} onClose={() => setPicker(null)} />}
     </div>

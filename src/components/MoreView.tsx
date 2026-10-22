@@ -1,5 +1,6 @@
-import { ArrowLeft, Bell, Copy, LogOut, MessageSquare, Smartphone, Users } from 'lucide-react';
+import { ArrowLeft, ArrowDown, ArrowUp, Bell, Copy, LogOut, MessageSquare, Smartphone, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
+import { moduleOn, MODULES, moveCard, TODAY_CARDS, todayOrder, toggled } from '../lib/modules';
 import { widgetScript } from '../lib/widget';
 import { getToken, resetLocalData, signOut, supabase } from '../store/backend';
 import { disablePush, enablePush, pushStatus, pushSupport, sendTestPush } from '../store/push';
@@ -34,6 +35,14 @@ export function MoreView({ onBack }: { onBack?: () => void }) {
             <input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} onBlur={() => name.trim() && name !== household.name && store.updateHousehold({ name: name.trim() })} />
           </Field>
         </section>
+      </Group>
+
+      <Group title="Tabs">
+        <ModulesCard />
+      </Group>
+
+      <Group title="Today screen">
+        <ArrangeCard />
       </Group>
 
       <Group title="Food & meals">
@@ -103,6 +112,53 @@ export function MoreView({ onBack }: { onBack?: () => void }) {
       )}
       </Group>
     </div>
+  );
+}
+
+function ModulesCard() {
+  const store = useStore();
+  const settings = store.data.household.settings;
+  return (
+    <section className="space-y-3 rounded-2xl bg-white p-4 ring-1 ring-stone-200">
+      <p className="text-sm text-stone-600">Choose which tabs your home uses. Switching one off only hides it. Nothing is deleted.</p>
+      {MODULES.map((m) => (
+        <div key={m.id}>
+          <Toggle on={moduleOn(settings, m.id)} label={m.label} onChange={() => store.updateHousehold({ settings: { disabledModules: toggled(settings.disabledModules, m.id) } })} />
+          <p className="text-xs text-stone-500">{m.hint}</p>
+        </div>
+      ))}
+    </section>
+  );
+}
+
+function ArrangeCard() {
+  const store = useStore();
+  const settings = store.data.household.settings;
+  const order = todayOrder(settings);
+  return (
+    <section className="rounded-2xl bg-white p-4 ring-1 ring-stone-200">
+      <p className="mb-2 text-sm text-stone-600">Show, hide and reorder the blocks on Today.</p>
+      <ul className="divide-y divide-stone-100">
+        {order.map((id, i) => {
+          const card = TODAY_CARDS.find((c) => c.id === id)!;
+          const shown = !settings.todayHidden?.includes(id);
+          return (
+            <li key={id} className="flex items-center gap-2 py-2">
+              <div className="min-w-0 flex-1">
+                <Toggle on={shown} label={card.label} onChange={() => store.updateHousehold({ settings: { todayHidden: toggled(settings.todayHidden, id) } })} />
+                <p className="text-xs text-stone-500">{card.hint}</p>
+              </div>
+              <button disabled={i === 0} onClick={() => store.updateHousehold({ settings: { todayOrder: moveCard(settings, id, -1) } })} aria-label={`Move ${card.label} up`} className="rounded-lg bg-stone-100 p-2 text-stone-700 disabled:opacity-30">
+                <ArrowUp size={16} />
+              </button>
+              <button disabled={i === order.length - 1} onClick={() => store.updateHousehold({ settings: { todayOrder: moveCard(settings, id, 1) } })} aria-label={`Move ${card.label} down`} className="rounded-lg bg-stone-100 p-2 text-stone-700 disabled:opacity-30">
+                <ArrowDown size={16} />
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
   );
 }
 

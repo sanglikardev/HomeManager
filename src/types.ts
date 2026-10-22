@@ -156,6 +156,9 @@ export interface HouseholdSettings {
   weekState?: Record<string, WeekMark>; // done / moved marks for routine items, keyed `${item}@${original date}`
   expenseCategories?: string[]; // custom list; defaults to DEFAULT_EXPENSE_CATEGORIES
   monthlyBudget?: number; // optional total budget per month, in rupees
+  disabledModules?: ('food' | 'home' | 'plans' | 'money')[]; // tabs switched off in Settings
+  todayOrder?: ('status' | 'meals' | 'quick' | 'todo')[]; // order of the Today blocks
+  todayHidden?: ('status' | 'meals' | 'quick' | 'todo')[]; // Today blocks switched off
 }
 
 export interface Household {

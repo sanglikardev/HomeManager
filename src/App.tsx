@@ -22,6 +22,7 @@ import { CloudBackend, getToken, LocalBackend, signOut, supabaseConfigured, type
 import { StoreProvider, useStore } from './store/store';
 import type { AppData } from './types';
 import { localDate } from './lib/dates';
+import { moduleOn, type ModuleId } from './lib/modules';
 import { upkeepStatus } from './lib/upkeep';
 
 type Boot =
@@ -181,7 +182,10 @@ function fromHash(h: string): { tab: Tab; food?: FoodPage; home?: HomePage } {
 function Shell() {
   const store = useStore();
   const [start] = useState(() => fromHash(location.hash.slice(1)));
-  const [tab, setTab] = useState<Tab>(start.tab);
+  const [tabState, setTab] = useState<Tab>(start.tab);
+  const settings = store.data.household.settings;
+  // A tab that was switched off in Settings falls back to Today.
+  const tab: Tab = tabState === 'today' || tabState === 'more' || moduleOn(settings, tabState) ? tabState : 'today';
   const [food, setFood] = useState<FoodPage>(start.food ?? 'shopping');
   const [home, setHome] = useState<HomePage>(start.home ?? 'upkeep');
   const [feedback, setFeedback] = useState(false);
@@ -205,13 +209,14 @@ function Shell() {
   const today = localDate();
   const needed = store.data.shopping.filter((s) => s.status === 'needed').length;
   const dueUpkeep = store.data.upkeep.filter((t) => upkeepStatus(t, today) === 'overdue').length;
-  const tabs: { id: Tab; label: string; icon: typeof Settings; badge?: number; badgeCls?: string }[] = [
+  const allTabs: { id: Tab; label: string; icon: typeof Settings; badge?: number; badgeCls?: string }[] = [
     { id: 'today', label: 'Today', icon: CalendarCheck },
     { id: 'food', label: 'Kitchen', icon: ChefHat, badge: needed },
     { id: 'home', label: 'Home', icon: House, badge: dueUpkeep, badgeCls: 'bg-rose-500' },
     { id: 'plans', label: 'Plans', icon: CalendarDays },
     { id: 'money', label: 'Money', icon: Wallet },
   ];
+  const tabs = allTabs.filter((t) => t.id === 'today' || moduleOn(settings, t.id as ModuleId));
   const actions = (
     <div className="flex gap-2">
       {store.backend.mode === 'cloud' && (
@@ -273,7 +278,7 @@ function Shell() {
         </button>
       )}
       <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-stone-200 bg-white/95 pb-safe backdrop-blur">
-        <div className="mx-auto grid max-w-lg grid-cols-5">
+        <div className="mx-auto grid max-w-lg" style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}>
           {tabs.map((t) => {
             const Icon = t.icon;
             const on = tab === t.id;
