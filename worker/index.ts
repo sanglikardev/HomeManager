@@ -101,6 +101,15 @@ export default {
         return json({ ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) }, 500);
       }
     }
+    // iPhone widget (Scriptable): a small summary for the home whose widget key this is.
+    if (url.pathname === '/api/widget') {
+      try {
+        const out = await rpc(env, 'hm_widget', { p_key: url.searchParams.get('k') ?? '' });
+        return new Response(JSON.stringify(out), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+      } catch {
+        return json({ ok: false, error: true }, 502);
+      }
+    }
     if (url.pathname === '/api/push/test') {
       if (req.method !== 'POST') return json({ ok: false }, 405);
       try {

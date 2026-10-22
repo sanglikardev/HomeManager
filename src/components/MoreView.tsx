@@ -1,6 +1,7 @@
-import { ArrowLeft, Bell, Copy, LogOut, MessageSquare, Users } from 'lucide-react';
+import { ArrowLeft, Bell, Copy, LogOut, MessageSquare, Smartphone, Users } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { resetLocalData, signOut } from '../store/backend';
+import { widgetScript } from '../lib/widget';
+import { getToken, resetLocalData, signOut, supabase } from '../store/backend';
 import { disablePush, enablePush, pushStatus, pushSupport, sendTestPush } from '../store/push';
 import { useStore } from '../store/store';
 import { FeedbackSheet } from './FeedbackSheet';
@@ -73,6 +74,7 @@ export function MoreView({ onBack }: { onBack?: () => void }) {
 
       <Group title="App">
       {cloud && <NotificationsCard />}
+      {cloud && <WidgetCard />}
       {cloud && (
         <button onClick={() => setFeedback(true)} className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left ring-1 ring-stone-200">
           <MessageSquare size={18} className="text-teal-700" />
@@ -157,6 +159,57 @@ function NotificationsCard() {
               </button>
             </div>
           )}
+        </>
+      )}
+    </section>
+  );
+}
+
+function WidgetCard() {
+  const toast = useToast();
+  const [script, setScript] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const make = async () => {
+    setBusy(true);
+    try {
+      const { data, error } = await supabase().rpc('hm_widget_key', { p_token: getToken() });
+      if (error) throw new Error(error.message);
+      setScript(widgetScript(data as string, window.location.origin));
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="rounded-2xl bg-white p-4 ring-1 ring-stone-200">
+      <h2 className="mb-1 flex items-center gap-2 font-semibold">
+        <Smartphone size={18} className="text-teal-700" /> iPhone widget
+      </h2>
+      {!script ? (
+        <>
+          <p className="mb-3 text-sm text-stone-600">Today's meals, what's due, things to buy and your next trip on the home screen. Uses the free Scriptable app.</p>
+          <button onClick={make} disabled={busy} className="w-full rounded-xl bg-stone-100 py-2.5 text-sm font-semibold text-stone-800">
+            {busy ? 'Making…' : 'Set up the widget'}
+          </button>
+        </>
+      ) : (
+        <>
+          <ol className="mb-3 list-decimal space-y-1 pl-5 text-sm text-stone-600">
+            <li>
+              Install <a href="https://apps.apple.com/app/scriptable/id1405459188" target="_blank" rel="noreferrer" className="font-medium text-teal-700">Scriptable</a> from the App Store.
+            </li>
+            <li>Copy the script below. In Scriptable tap +, paste it, and name it HomeManager.</li>
+            <li>Long-press the home screen, tap Edit, then Add Widget, Scriptable, a medium size. Tap the widget and choose the HomeManager script.</li>
+          </ol>
+          <button
+            onClick={() => navigator.clipboard?.writeText(script).then(() => toast('Script copied'), () => toast('Could not copy. Select the text below instead.'))}
+            className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-teal-700 py-2.5 text-sm font-semibold text-white"
+          >
+            <Copy size={16} /> Copy script
+          </button>
+          <textarea readOnly className={`${inputCls} h-28 font-mono text-xs`} value={script} onFocus={(e) => e.target.select()} />
+          <p className="mt-2 text-xs text-stone-500">The script has a private key for your home. Setting up again makes a new key and the old widget stops working.</p>
         </>
       )}
     </section>

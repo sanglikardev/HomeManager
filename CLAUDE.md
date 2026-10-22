@@ -87,13 +87,16 @@ Check the result with the GitHub check run on the commit.
 - Tables: hm_households, hm_household_members, hm_accounts, hm_sessions, hm_items,
   hm_dishes, hm_meals, hm_shopping, hm_pantry_events, hm_upkeep, hm_plans, hm_expenses, hm_bills,
   hm_data_tables, hm_config,
-  hm_feedback, hm_feedback_failures, hm_staff, hm_docs, hm_doc_files, hm_push_subs.
+  hm_feedback, hm_feedback_failures, hm_staff, hm_docs, hm_doc_files, hm_push_subs, hm_widget_keys.
   `hm_members` is an unused leftover.
 - Document files are base64 rows in `hm_doc_files` (written via hm_upsert, read one at a
   time with `hm_doc_file(token, id)`, never in hm_load). Photos are shrunk client-side.
 - Notifications: `hm_push_subs` per phone; `hm_push_due(secret)` (hourly Worker cron) and
   `hm_push_test(secret, token)` return the VAPID private JWK from hm_config plus messages;
   the secret is the `PUSH_SECRET` Worker secret, checked against hm_config `push_secret_hash`.
+- iPhone widget: Settings > App > iPhone widget makes a key (`hm_widget_key`, sha256 in
+  `hm_widget_keys`) and a Scriptable script (`src/lib/widget.ts`) that reads
+  `GET /api/widget?k=` (Worker -> `hm_widget`).
 - Save every schema change as the next numbered file in `supabase/migrations/`.
 - Changes containing DROP/DELETE/REVOKE need a human to approve in Supabase; the
   connector's apply_migration times out waiting. Give such SQL to the owner to run in the
