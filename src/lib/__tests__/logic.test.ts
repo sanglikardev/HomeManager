@@ -67,7 +67,7 @@ describe('suggestions', () => {
     expect(first.length).toBe(10);
     expect(first.every((s) => s.missing.length === 0)).toBe(true);
     const top = first[0].dish;
-    meals.push({ id: 'm', date: '2026-10-19', slot: 'dinner', kind: 'cooked', dishId: top.id, label: top.name, servings: 3, createdAt: NOW.toISOString() });
+    meals.push({ id: 'm', date: '2026-10-19', slot: 'dinner', kind: 'cooked', dishId: top.id, label: top.name, servings: 3, qty: '', createdAt: NOW.toISOString() });
     const next = suggest({ dishes, items, meals, settings, date: '2026-10-20', slot: 'lunch', now: NOW });
     expect(next.map((s) => s.dish.id)).not.toContain(top.id);
   });

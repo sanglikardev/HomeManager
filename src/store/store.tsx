@@ -86,7 +86,7 @@ export interface Store {
   clearError(): void;
   reload(): Promise<void>;
 
-  logMeal(opts: { date: string; slot: Slot; kind: MealKind; dish?: Dish | null; label?: string; servings?: number }): string;
+  logMeal(opts: { date: string; slot: Slot; kind: MealKind; dish?: Dish | null; label?: string; servings?: number; qty?: string }): string;
   undoMeal(mealId: string): void;
   setItemLevel(itemId: string, level: number, reason?: 'correction' | 'manual' | 'spoiled' | 'purchase'): void;
   skipQuestion(itemId: string): void;
@@ -219,7 +219,7 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
       clearError: () => setError(null),
       reload,
 
-      logMeal: ({ date, slot, kind, dish, label, servings }) => {
+      logMeal: ({ date, slot, kind, dish, label, servings, qty }) => {
         const mealId = uid();
         commit((d, now) => {
           const people = d.household.settings.people || 1;
@@ -231,11 +231,12 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
             dishId: dish?.id ?? null,
             label: label ?? dish?.name ?? '',
             servings: servings ?? people,
+            qty: qty ?? '',
             createdAt: now.toISOString(),
           };
           const items: Item[] = [];
           const events: PantryEvent[] = [];
-          if (kind === 'cooked' && dish) {
+          if (kind === 'cooked' && dish && date <= localDate(now)) {
             const factor = meal.servings / people;
             for (const ing of dish.ingredients) {
               const item = itemById(d, ing.itemId);

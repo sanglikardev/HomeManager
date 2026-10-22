@@ -6,7 +6,7 @@ import { activeTrip, countdown, upcomingPlans } from '../lib/plans';
 import { pickQuestions, type Question } from '../lib/questions';
 import { suggest, type Suggestion } from '../lib/suggest';
 import { offToday } from '../lib/staff';
-import { mealPlanOfDay } from '../lib/today';
+import { mealLine, mealPlanOfDay, menuText } from '../lib/today';
 import { useStore } from '../store/store';
 import type { MealLog, Slot } from '../types';
 import { AwayCard, TodoCard, type Go } from './ComingUp';
@@ -41,8 +41,8 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
   }, [data, settings, date, now]);
 
   const logged = useMemo(() => {
-    const m = {} as Record<Slot, MealLog | undefined>;
-    for (const meal of data.meals) if (meal.date === date) m[meal.slot] = meal;
+    const m = {} as Record<Slot, MealLog[] | undefined>;
+    for (const meal of data.meals) if (meal.date === date) (m[meal.slot] ??= []).push(meal);
     return m;
   }, [data.meals, date]);
 
@@ -82,7 +82,17 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
   const preview = day === 'tomorrow';
   const loggedSlots = settings.slots.filter((s) => logged[s]);
-  const cooked = settings.slots.filter((s) => logged[s]?.kind === 'cooked');
+  const menu = menuText(
+    data.meals.filter((m) => m.date === date),
+    settings.slots,
+    preview ? 'tomorrow' : 'today',
+  );
+
+  const browse = (slot: Slot) => (
+    <button onClick={() => setPicker(slot)} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-stone-300 py-2 text-xs font-medium text-stone-600">
+      <UtensilsCrossed size={16} /> {preview ? 'Choose from all dishes' : 'Choose from all dishes, ordered in, or leftovers'}
+    </button>
+  );
 
   const slotBlock = (slot: Slot, showOthers: boolean, toggleOthers: () => void) => {
     const list = bySlot[slot] ?? [];
@@ -90,11 +100,9 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
       return (
         <div className="rounded-2xl border border-dashed border-stone-300 bg-white p-4 text-sm text-stone-500">
           No {SLOT_LABEL[slot].toLowerCase()} dishes in your rotation yet. Add some under Food, Dishes.
-          {!preview && (
-            <button onClick={() => setPicker(slot)} className="mt-2 block font-medium text-teal-700">
-              Log what you ate
-            </button>
-          )}
+          <button onClick={() => setPicker(slot)} className="mt-2 block font-medium text-teal-700">
+            {preview ? 'Choose from all dishes' : 'Log what you ate'}
+          </button>
         </div>
       );
     return (
@@ -105,17 +113,13 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
             {list.slice(1).map((s) => (
               <SuggestionCard key={s.dish.id} s={s} preview={preview} onCook={() => cook(slot, s)} onAddMissing={addMissing} />
             ))}
-            {!preview && (
-              <button onClick={() => setPicker(slot)} className="flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-stone-300 py-2 text-xs font-medium text-stone-600">
-                <UtensilsCrossed size={16} /> Something else, ordered in, or leftovers
-              </button>
-            )}
           </>
         ) : (
           <button onClick={toggleOthers} className="w-full py-1 text-center text-sm font-medium text-teal-700">
             Other ideas{list.length > 1 ? ` (${list.length - 1})` : ''}
           </button>
         )}
+        {browse(slot)}
       </div>
     );
   };
@@ -187,7 +191,7 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
           {loggedSlots.length > 0 && (
             <div className="mb-2 space-y-1.5">
               {loggedSlots.map((s) => (
-                <LoggedRow key={s} slot={s} meal={logged[s]!} onUndo={() => store.undoMeal(logged[s]!.id)} />
+                <LoggedRow key={s} slot={s} meals={logged[s]!} onUndo={(id) => store.undoMeal(id)} onAdd={() => setPicker(s)} />
               ))}
             </div>
           )}
@@ -224,11 +228,9 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
             </div>
           )}
 
-          {settings.cookAtHome && cooked.length > 0 && (
+          {settings.cookAtHome && menu && (
             <a
-              href={`https://wa.me/?text=${encodeURIComponent(
-                `Menu for ${preview ? 'tomorrow' : 'today'}\n` + cooked.map((s) => `${SLOT_LABEL[s]}: ${logged[s]!.label} (for ${logged[s]!.servings})`).join('\n'),
-              )}`}
+              href={`https://wa.me/?text=${encodeURIComponent(menu)}`}
               target="_blank"
               rel="noreferrer"
               className="mt-2 flex items-center justify-center gap-1.5 py-1 text-sm font-medium text-emerald-700"
@@ -326,18 +328,28 @@ function SuggestionCard({ s, top, preview, onCook, onAddMissing }: { s: Suggesti
   );
 }
 
-function LoggedRow({ slot, meal, onUndo }: { slot: Slot; meal: MealLog; onUndo: () => void }) {
+function LoggedRow({ slot, meals, onUndo, onAdd }: { slot: Slot; meals: MealLog[]; onUndo: (id: string) => void; onAdd: () => void }) {
   return (
-    <div className="flex items-center gap-3 rounded-2xl bg-emerald-50 px-3 py-2 ring-1 ring-emerald-200">
-      <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white">
-        <Check size={14} />
-      </span>
-      <p className="min-w-0 flex-1 truncate text-sm text-emerald-950">
-        <span className="text-emerald-800">{SLOT_LABEL[slot]}:</span> {meal.label || kindLabel(meal)}
-      </p>
-      <button onClick={onUndo} aria-label={`Undo ${SLOT_LABEL[slot].toLowerCase()}`} className="rounded-lg p-1.5 text-emerald-800">
-        <Undo2 size={15} />
-      </button>
+    <div className="rounded-2xl bg-emerald-50 px-3 py-2 ring-1 ring-emerald-200">
+      <div className="flex items-center gap-3">
+        <span className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-600 text-white">
+          <Check size={14} />
+        </span>
+        <p className="flex-1 text-sm text-emerald-800">{SLOT_LABEL[slot]}</p>
+        <button onClick={onAdd} className="flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-emerald-800">
+          <Plus size={14} /> Add dish
+        </button>
+      </div>
+      <ul className="ml-9 mt-0.5">
+        {meals.map((m) => (
+          <li key={m.id} className="flex items-center gap-2">
+            <span className="min-w-0 flex-1 truncate text-sm text-emerald-950">{m.kind === 'cooked' ? mealLine(m) || kindLabel(m) : m.label || kindLabel(m)}</span>
+            <button onClick={() => onUndo(m.id)} aria-label={`Remove ${m.label || kindLabel(m)}`} className="rounded-lg p-1.5 text-emerald-800">
+              <Undo2 size={15} />
+            </button>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

@@ -106,6 +106,7 @@ export interface MealLog {
   dishId: string | null;
   label: string; // dish name, or free text ("Pizza from Domino's")
   servings: number;
+  qty: string; // optional amount for the cook, e.g. "12 rotis"
   createdAt: string;
 }
 
