@@ -5,6 +5,8 @@ import { addDays, friendlyDate, localDate } from '../lib/dates';
 import { docDueLabel, docsDue, docStatus } from '../lib/docs';
 import { billDueLabel, billsDue, formatINR } from '../lib/money';
 import { activeTrip, dateRange, dueTasks } from '../lib/plans';
+import { moduleOn } from '../lib/modules';
+import { setTodoDone, todoDueLabel, todosForToday, todoStatus } from '../lib/todos';
 import { dueLabel, markDone, sortByUrgency, unmarkDone, upkeepStatus } from '../lib/upkeep';
 import { useStore } from '../store/store';
 import type { Bill, HomeDoc, UpkeepTask } from '../types';
@@ -14,7 +16,7 @@ import { useToast } from './toast';
 import { RenewSheet } from './UpkeepSheet';
 import { STATUS_STYLE } from './UpkeepView';
 
-export type Dest = 'shopping' | 'pantry' | 'dishes' | 'upkeep' | 'routine' | 'help' | 'docs' | 'plans' | 'money';
+export type Dest = 'todos' | 'shopping' | 'pantry' | 'dishes' | 'upkeep' | 'routine' | 'help' | 'docs' | 'plans' | 'money';
 export type Go = (to: Dest) => void;
 
 const SHOWN = 6;
@@ -41,6 +43,7 @@ export function TodoCard({ date, onGo }: { date: string; onGo: Go }) {
   const tasks = useMemo(() => (isToday ? dueTasks(plans, today, 7) : []), [plans, today, isToday]);
   const docs = useMemo(() => (isToday ? docsDue(store.data.docs, today) : []), [store.data.docs, today, isToday]);
   const [doc, setDoc] = useState<HomeDoc | null>(null);
+  const todos = useMemo(() => (isToday && moduleOn(settings, 'todos') ? todosForToday(store.data.todos, today) : []), [store.data.todos, today, isToday, settings]);
 
   const toggleRoutine = (item: RoutineItem) => {
     const task = item.taskId ? upkeep.find((t) => t.id === item.taskId) : undefined;
@@ -109,6 +112,26 @@ export function TodoCard({ date, onGo }: { date: string; onGo: Go }) {
         </Row>
       ),
     })),
+    ...todos.map((t) => ({
+      key: `t-${t.id}`,
+      node: (
+        <div className="flex items-center gap-3 px-4 py-3">
+          <button
+            onClick={() => {
+              store.saveTodo(setTodoDone(t, true, today));
+              toast(`${t.title} done`, { label: 'Undo', run: () => store.saveTodo(t) });
+            }}
+            aria-label={`Done: ${t.title}`}
+          >
+            <Tick on={false} />
+          </button>
+          <button onClick={() => onGo('todos')} className="min-w-0 flex-1 text-left">
+            <p className="text-sm text-stone-900">{t.title}</p>
+            <p className={`text-xs ${todoStatus(t, today) === 'overdue' ? 'text-rose-700' : 'text-stone-500'}`}>To-do · {todoDueLabel(t, today)}</p>
+          </button>
+        </div>
+      ),
+    })),
     ...tasks.map(({ plan, task }) => ({
       key: `p-${task.id}`,
       node: (
@@ -128,7 +151,7 @@ export function TodoCard({ date, onGo }: { date: string; onGo: Go }) {
   ];
 
   if (!rows.length) return null;
-  const open = routine.filter((r) => !r.done).length + dueBills.length + urgent.length + tasks.length + docs.length;
+  const open = routine.filter((r) => !r.done).length + dueBills.length + urgent.length + tasks.length + docs.length + todos.length;
   const shown = all ? rows : rows.slice(0, SHOWN);
 
   return (

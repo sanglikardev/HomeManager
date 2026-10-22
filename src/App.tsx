@@ -1,4 +1,4 @@
-import { CalendarCheck, CalendarDays, ChefHat, House, MessageSquare, Plus, Settings, Users, Wallet } from 'lucide-react';
+import { CalendarCheck, CalendarDays, ChefHat, House, ListChecks, MessageSquare, Plus, Settings, Users, Wallet } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { WeeklyChores } from './components/CalendarSection';
 import type { Dest } from './components/ComingUp';
@@ -16,6 +16,7 @@ import { UpkeepView } from './components/UpkeepView';
 import { SetupWizard } from './components/SetupWizard';
 import { ShoppingView } from './components/ShoppingView';
 import { TodayView } from './components/TodayView';
+import { TodosView } from './components/TodosView';
 import { ToastProvider } from './components/toast';
 import { inputCls, PrimaryButton, SecondaryButton, Segmented } from './components/ui';
 import { CloudBackend, getToken, LocalBackend, signOut, supabaseConfigured, type Backend } from './store/backend';
@@ -164,7 +165,7 @@ function JoinOrCreate({ backend, onCreate, onJoined }: { backend: Backend; onCre
   );
 }
 
-type Tab = 'today' | 'food' | 'home' | 'plans' | 'money' | 'more';
+type Tab = 'today' | 'food' | 'home' | 'plans' | 'money' | 'todos' | 'more';
 type FoodPage = 'shopping' | 'pantry' | 'dishes';
 type HomePage = 'upkeep' | 'routine' | 'help' | 'docs';
 const FOOD: FoodPage[] = ['shopping', 'pantry', 'dishes'];
@@ -175,7 +176,7 @@ function fromHash(h: string): { tab: Tab; food?: FoodPage; home?: HomePage } {
   if (h === 'kitchen') return { tab: 'food', food: 'pantry' };
   if (FOOD.includes(h as FoodPage)) return { tab: 'food', food: h as FoodPage };
   if (HOME.includes(h as HomePage)) return { tab: 'home', home: h as HomePage };
-  if (['today', 'food', 'home', 'plans', 'money', 'more'].includes(h)) return { tab: h as Tab };
+  if (['today', 'food', 'home', 'plans', 'money', 'todos', 'more'].includes(h)) return { tab: h as Tab };
   return { tab: 'today' };
 }
 
@@ -209,10 +210,12 @@ function Shell() {
   const today = localDate();
   const needed = store.data.shopping.filter((s) => s.status === 'needed').length;
   const dueUpkeep = store.data.upkeep.filter((t) => upkeepStatus(t, today) === 'overdue').length;
+  const openDue = store.data.todos.filter((t) => !t.done && t.dueDate && t.dueDate <= today).length;
   const allTabs: { id: Tab; label: string; icon: typeof Settings; badge?: number; badgeCls?: string }[] = [
     { id: 'today', label: 'Today', icon: CalendarCheck },
     { id: 'food', label: 'Kitchen', icon: ChefHat, badge: needed },
     { id: 'home', label: 'Home', icon: House, badge: dueUpkeep, badgeCls: 'bg-rose-500' },
+    { id: 'todos', label: 'To-do', icon: ListChecks, badge: openDue, badgeCls: 'bg-rose-500' },
     { id: 'plans', label: 'Plans', icon: CalendarDays },
     { id: 'money', label: 'Money', icon: Wallet },
   ];
@@ -262,6 +265,7 @@ function Shell() {
         )}
         {tab === 'home' && home === 'help' && <HelpView />}
         {tab === 'home' && home === 'docs' && <DocsView />}
+        {tab === 'todos' && <TodosView />}
         {tab === 'plans' && <PlansView />}
         {tab === 'money' && <MoneyView />}
         {tab === 'more' && <MoreView onBack={() => setTab('today')} />}

@@ -7,6 +7,7 @@ import { holdPerishables } from '../lib/plans';
 import type {
   AppData,
   Bill,
+  Todo,
   Bucket,
   Dish,
   Expense,
@@ -38,6 +39,7 @@ interface Change {
   bills?: Bill[];
   staff?: Staff[];
   docs?: HomeDoc[];
+  todos?: Todo[];
   removed?: Partial<Record<TableName, string[]>>;
   docFiles?: DocFile[]; // written after the docs they belong to
   removedDocFiles?: string[];
@@ -63,6 +65,7 @@ function applyChange(data: AppData, c: Change): AppData {
   next.bills = merge(data.bills, c.bills, c.removed?.bills);
   next.staff = merge(data.staff, c.staff, c.removed?.staff);
   next.docs = merge(data.docs, c.docs, c.removed?.docs);
+  next.todos = merge(data.todos, c.todos, c.removed?.todos);
   return next;
 }
 
@@ -110,6 +113,8 @@ export interface Store {
   deleteExpense(id: string): void;
   saveBill(bill: Bill): void;
   deleteBill(id: string): void;
+  saveTodo(todo: Todo): void;
+  deleteTodo(id: string): void;
   payBill(billId: string, amount: number, date: string): string | null; // id of the logged expense
   // Undo for a payment: puts the bill back and removes the expense.
   unpayBill(before: Bill, expenseId: string): void;
@@ -144,7 +149,7 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
       // Writes go out one batch at a time, in order.
       queue.current = queue.current
         .then(async () => {
-          const tables: TableName[] = ['items', 'dishes', 'meals', 'shopping', 'events', 'upkeep', 'plans', 'expenses', 'bills', 'staff', 'docs'];
+          const tables: TableName[] = ['items', 'dishes', 'meals', 'shopping', 'events', 'upkeep', 'plans', 'expenses', 'bills', 'staff', 'docs', 'todos'];
           for (const t of tables) {
             const rows = c[t] as object[] | undefined;
             if (rows?.length) await backend.upsert(t, rows);
@@ -382,6 +387,8 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
       deleteExpense: (id) => commit(() => ({ removed: { expenses: [id] } }), false),
       saveBill: (bill) => commit(() => ({ bills: [bill] }), false),
       deleteBill: (id) => commit(() => ({ removed: { bills: [id] } }), false),
+      saveTodo: (todo) => commit(() => ({ todos: [todo] }), false),
+      deleteTodo: (id) => commit(() => ({ removed: { todos: [id] } }), false),
       payBill: (billId, amount, date) => {
         const bill = dataRef.current.bills.find((b) => b.id === billId);
         if (!bill) return null;

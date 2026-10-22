@@ -3,9 +3,12 @@ import { useMemo, useState } from 'react';
 import { choreFor, entriesOn, entryCountsByDay, monthGrid, routineWeek, type RoutineItem, weekStart, withMark } from '../lib/calendar';
 import { addDays, friendlyDate, localDate, parseLocalDate, WEEKDAYS, WEEKDAYS_SHORT } from '../lib/dates';
 import { uid } from '../lib/id';
+import { moduleOn } from '../lib/modules';
+import { setTodoDone, todosOn } from '../lib/todos';
 import { markDone, unmarkDone } from '../lib/upkeep';
 import { useStore } from '../store/store';
 import type { Plan, WeekMark } from '../types';
+import { TodoSheet } from './TodosView';
 import { Field, inputCls, PrimaryButton, Segmented, Sheet } from './ui';
 
 const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
@@ -161,8 +164,9 @@ export function MonthCalendar({ onOpenPlan }: { onOpenPlan: (id: string) => void
   const [view, setView] = useState<'month' | 'year'>('month');
   const [day, setDay] = useState<string | null>(null);
   const plans = store.data.plans;
+  const todos = moduleOn(store.data.household.settings, 'todos') ? store.data.todos : [];
   const grid = useMemo(() => monthGrid(year, month), [year, month]);
-  const counts = useMemo(() => entryCountsByDay(plans, year, month), [plans, year, month]);
+  const counts = useMemo(() => entryCountsByDay(plans, year, month, todos), [plans, todos, year, month]);
   const shift = (n: number) => {
     const d = new Date(year, month + n, 1);
     setYear(d.getFullYear());
@@ -211,6 +215,7 @@ export function MonthCalendar({ onOpenPlan }: { onOpenPlan: (id: string) => void
                     {list.slice(0, 3).map((p) => (
                       <span key={p.id} className={`h-1.5 w-1.5 rounded-full ${isToday ? 'bg-white' : KIND_DOT[p.kind]}`} />
                     ))}
+                    {todosOn(todos, date).some((t) => !t.done) && <span className={`h-1.5 w-1.5 rounded-sm ${isToday ? 'bg-white' : 'bg-emerald-500'}`} />}
                   </span>
                 </button>
               );
@@ -223,7 +228,7 @@ export function MonthCalendar({ onOpenPlan }: { onOpenPlan: (id: string) => void
       ) : (
         <div className="grid grid-cols-3 gap-2">
           {MONTHS.map((name, m) => {
-            const n = entryCountsByDay(plans, year, m).size;
+            const n = entryCountsByDay(plans, year, m, todos).size;
             const current = year === now.getFullYear() && m === now.getMonth();
             return (
               <button
@@ -248,6 +253,9 @@ export function MonthCalendar({ onOpenPlan }: { onOpenPlan: (id: string) => void
 
 function DaySheet({ date, onClose, onOpenPlan }: { date: string; onClose: () => void; onOpenPlan: (id: string) => void }) {
   const store = useStore();
+  const showTodos = moduleOn(store.data.household.settings, 'todos');
+  const dayTodos = showTodos ? todosOn(store.data.todos, date) : [];
+  const [addingTodo, setAddingTodo] = useState(false);
   const list = entriesOn(store.data.plans, date);
   const chore = choreFor(store.data.household.settings, date);
   const [title, setTitle] = useState('');
@@ -265,7 +273,7 @@ function DaySheet({ date, onClose, onOpenPlan }: { date: string; onClose: () => 
   return (
     <Sheet title={`${WEEKDAYS[d.getDay()]} ${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`} onClose={onClose}>
       {chore && <p className="mb-3 rounded-xl bg-teal-50 px-3 py-2 text-sm text-teal-900">Routine: {chore}</p>}
-      {list.length === 0 && <p className="mb-3 text-sm text-stone-500">Nothing planned.</p>}
+      {list.length === 0 && dayTodos.length === 0 && <p className="mb-3 text-sm text-stone-500">Nothing planned.</p>}
       <div className="mb-4 space-y-2">
         {list.map((p) => (
           <button key={p.id} onClick={() => onOpenPlan(p.id)} className="flex w-full items-center gap-3 rounded-xl bg-white px-3 py-2.5 text-left ring-1 ring-stone-200">
@@ -275,6 +283,23 @@ function DaySheet({ date, onClose, onOpenPlan }: { date: string; onClose: () => 
           </button>
         ))}
       </div>
+      {dayTodos.length > 0 && (
+        <div className="mb-4 space-y-2">
+          {dayTodos.map((t) => (
+            <button key={t.id} onClick={() => store.saveTodo(setTodoDone(t, !t.done, localDate()))} className="flex w-full items-center gap-3 rounded-xl bg-white px-3 py-2.5 text-left ring-1 ring-stone-200">
+              <span className={`h-2.5 w-2.5 shrink-0 rounded-sm ${t.done ? 'bg-stone-300' : 'bg-emerald-500'}`} />
+              <span className={`flex-1 text-sm ${t.done ? 'text-stone-400 line-through' : 'text-stone-800'}`}>{t.title}</span>
+              <span className="text-xs text-stone-500">{t.done ? 'Done' : 'To-do · tap to tick'}</span>
+            </button>
+          ))}
+        </div>
+      )}
+      {showTodos && (
+        <button onClick={() => setAddingTodo(true)} className="mb-4 w-full rounded-xl bg-emerald-50 py-2.5 text-sm font-semibold text-emerald-800">
+          Add a to-do for this day
+        </button>
+      )}
+      {addingTodo && <TodoSheet todo={null} date={date} onClose={() => setAddingTodo(false)} />}
       <form
         onSubmit={(e) => {
           e.preventDefault();

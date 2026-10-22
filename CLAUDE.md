@@ -7,7 +7,7 @@ them in a private handover note. Never commit keys, tokens or passwords.
 
 A phone-first household app (PWA) for one family:
 
-Five tabs plus a "+" button (bottom right) that adds anything: expense, shopping item,
+Today plus optional tabs (each can be switched off in Settings > Tabs) and a "+" button (bottom right) that adds anything: expense, shopping item,
 upkeep task, plan, document, help day off, bug/idea.
 
 - **Today**: a one-screen briefing. Status chips (bills due, budget, to buy, help off,
@@ -23,7 +23,8 @@ upkeep task, plan, document, help day off, bug/idea.
 - **Plans**: plans list first, then month/year calendar.
 - **Money**: month total with optional budget (warning from 80%), recurring bills, where it
   went, expenses, CSV export, "Budget & categories".
-- **Settings** (gear on Today): grouped Your home / Food & meals / Family / App
+- **To-do**: tasks with an optional due date (`hm_todos`). Open ones due within a week (or overdue) show in Today's "To do" list; due dates show as markers in the Plans calendar (day sheet ticks them off).
+- **Settings** (gear on Today): grouped Your home / Tabs / Today screen (show, hide, reorder blocks; stored in household settings: `disabledModules`, `todayOrder`, `todayHidden`) / Food & meals / Family / App
   (notifications, feedback, sign out). Feedback icon on Today shows a badge when Claude replied.
 
 Suggestions are rule-based on purpose (owner chose: no AI in the app).
@@ -39,7 +40,7 @@ src/types.ts             all record types
 src/store/backend.ts     LocalBackend (localStorage) and CloudBackend (Supabase RPCs), sign-in, feedback calls
 src/store/store.tsx      in-memory store, actions, persistence, shopping-list sync
 src/store/push.ts        phone notification subscribe/unsubscribe/test (VAPID public key)
-src/lib/                 pure logic: pantry, suggest, questions, upkeep, plans, calendar, money, staff, docs, today, dates (tested)
+src/lib/                 pure logic: modules, todos, pantry, suggest, questions, upkeep, plans, calendar, money, staff, docs, today, dates (tested)
 src/lib/__tests__/       vitest tests
 src/components/          one file per screen/sheet; shared bits in ui.tsx and toast.tsx
 src/data/                seed items, dishes, upkeep templates
@@ -87,7 +88,7 @@ Check the result with the GitHub check run on the commit.
 - Tables: hm_households, hm_household_members, hm_accounts, hm_sessions, hm_items,
   hm_dishes, hm_meals, hm_shopping, hm_pantry_events, hm_upkeep, hm_plans, hm_expenses, hm_bills,
   hm_data_tables, hm_config,
-  hm_feedback, hm_feedback_failures, hm_staff, hm_docs, hm_doc_files, hm_push_subs, hm_widget_keys.
+  hm_feedback, hm_feedback_failures, hm_staff, hm_docs, hm_doc_files, hm_todos, hm_push_subs, hm_widget_keys.
   `hm_members` is an unused leftover.
 - Document files are base64 rows in `hm_doc_files` (written via hm_upsert, read one at a
   time with `hm_doc_file(token, id)`, never in hm_load). Photos are shrunk client-side.

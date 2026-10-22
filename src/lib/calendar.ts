@@ -1,4 +1,4 @@
-import type { HouseholdSettings, Plan, UpkeepTask, WeekMark } from '../types';
+import type { HouseholdSettings, Plan, Todo, UpkeepTask, WeekMark } from '../types';
 import { addDays, dateDiff, localDate, parseLocalDate } from './dates';
 
 // Weeks of a month, Monday first. Days outside the month are null.
@@ -21,12 +21,13 @@ export function entriesOn(plans: Plan[], date: string): Plan[] {
     .sort((a, b) => (a.time || '99:99').localeCompare(b.time || '99:99') || a.title.localeCompare(b.title));
 }
 
-export function entryCountsByDay(plans: Plan[], year: number, month: number): Map<string, number> {
+// Days of a month with a plan or an open to-do, and how many.
+export function entryCountsByDay(plans: Plan[], year: number, month: number, todos: Todo[] = []): Map<string, number> {
   const out = new Map<string, number>();
   const last = new Date(year, month + 1, 0).getDate();
   for (let d = 1; d <= last; d++) {
     const date = localDate(new Date(year, month, d));
-    const n = entriesOn(plans, date).length;
+    const n = entriesOn(plans, date).length + todos.filter((t) => !t.done && t.dueDate === date).length;
     if (n) out.set(date, n);
   }
   return out;

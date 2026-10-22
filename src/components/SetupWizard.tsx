@@ -53,6 +53,7 @@ export function SetupWizard({ onDone, busy }: { onDone: (data: AppData) => void;
       bills: [],
       staff: [],
       docs: [],
+      todos: [],
     });
   };
 

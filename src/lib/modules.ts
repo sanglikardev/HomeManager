@@ -1,12 +1,13 @@
 import type { HouseholdSettings } from '../types';
 
 // Tabs a home can switch off. Today and Settings are always there.
-export type ModuleId = 'food' | 'home' | 'plans' | 'money';
+export type ModuleId = 'food' | 'home' | 'plans' | 'money' | 'todos';
 export const MODULES: { id: ModuleId; label: string; hint: string }[] = [
   { id: 'food', label: 'Kitchen', hint: 'Shopping list, pantry, dishes' },
   { id: 'home', label: 'Home', hint: 'Upkeep, routine, help, documents' },
   { id: 'plans', label: 'Plans', hint: 'Plans, trips and the calendar' },
   { id: 'money', label: 'Money', hint: 'Expenses, bills and budget' },
+  { id: 'todos', label: 'To-do', hint: 'Tasks with due dates, shown in the Plans calendar' },
 ];
 
 // Blocks on the Today screen, in their default order.

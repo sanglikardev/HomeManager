@@ -8,7 +8,7 @@ import type { AppData, Household } from '../types';
 // Cloud sign-in is HomeManager's own username + password (see
 // supabase/migrations/0002_username_login.sql), not Supabase Auth.
 
-export type TableName = 'items' | 'dishes' | 'meals' | 'shopping' | 'events' | 'upkeep' | 'plans' | 'expenses' | 'bills' | 'staff' | 'docs';
+export type TableName = 'items' | 'dishes' | 'meals' | 'shopping' | 'events' | 'upkeep' | 'plans' | 'expenses' | 'bills' | 'staff' | 'docs' | 'todos';
 
 const TABLES: Record<TableName, string> = {
   items: 'hm_items',
@@ -22,6 +22,7 @@ const TABLES: Record<TableName, string> = {
   bills: 'hm_bills',
   staff: 'hm_staff',
   docs: 'hm_docs',
+  todos: 'hm_todos',
 };
 
 export interface DocFile {
@@ -66,6 +67,7 @@ export class LocalBackend implements Backend {
         this.data.bills ??= [];
         this.data.staff ??= [];
         this.data.docs ??= [];
+        this.data.todos ??= [];
       }
     } catch {
       this.data = null;
@@ -269,6 +271,7 @@ export class CloudBackend implements Backend {
       bills: list('bills'),
       staff: list('staff'),
       docs: list('docs'),
+      todos: list('todos'),
     };
   }
 
