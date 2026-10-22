@@ -122,6 +122,11 @@ export function FeedbackSheet({ onClose }: { onClose: () => void }) {
                       </span>
                     </div>
                     <p className="whitespace-pre-wrap text-sm text-stone-800">{f.body}</p>
+                    {f.sessionUrl && (
+                      <a href={f.sessionUrl} target="_blank" rel="noreferrer" className="mt-1.5 inline-block text-sm font-semibold text-teal-800 underline">
+                        {f.status === 'new' || f.status === 'working' ? 'Watch Claude work' : 'See how Claude did it'}
+                      </a>
+                    )}
                     {f.claudeNote && <p className="mt-1.5 rounded-xl bg-stone-50 px-3 py-2 text-sm text-stone-600">Claude: {f.claudeNote}</p>}
                   </div>
                 ))}
@@ -150,7 +155,6 @@ function StartClaude({ onStarted }: { onStarted: () => void }) {
   const [password, setPassword] = useState('');
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
-  const [sessionUrl, setSessionUrl] = useState<string | null>(null);
 
   const start = async () => {
     setBusy(true);
@@ -164,7 +168,6 @@ function StartClaude({ onStarted }: { onStarted: () => void }) {
       const out = (await res.json().catch(() => ({}))) as { ok?: boolean; reason?: string; open?: number; missing?: string[]; sessionUrl?: string | null };
       if (out.ok) {
         setPassword('');
-        setSessionUrl(out.sessionUrl ?? null);
         toast(`Claude started on ${out.open} item${out.open === 1 ? '' : 's'}`);
         onStarted();
       } else {
@@ -197,11 +200,6 @@ function StartClaude({ onStarted }: { onStarted: () => void }) {
         </PrimaryButton>
       </div>
       {message && <p className="mt-2 text-sm text-rose-600">{message}</p>}
-      {sessionUrl && (
-        <a href={sessionUrl} target="_blank" rel="noreferrer" className="mt-3 block text-sm font-semibold text-teal-800 underline">
-          Watch Claude work
-        </a>
-      )}
     </section>
   );
 }

@@ -226,6 +226,7 @@ export interface FeedbackItem {
   createdAt: string;
   updatedAt: string;
   by: string | null;
+  sessionUrl: string | null; // the Claude session that worked on it
 }
 
 export async function listFeedback(): Promise<{ enabled: boolean; items: FeedbackItem[] }> {

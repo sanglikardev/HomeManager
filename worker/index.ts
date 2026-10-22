@@ -88,7 +88,10 @@ async function runFeedback(req: Request, env: Env): Promise<Response> {
   });
   if (!fire.ok) return json({ ok: false, reason: 'fire_failed', status: fire.status }, 502);
   const out = (await fire.json()) as { claude_code_session_url?: string };
-  return json({ ok: true, open: check.open, sessionUrl: out.claude_code_session_url ?? null });
+  const sessionUrl = out.claude_code_session_url ?? null;
+  // Link the waiting items to this session. A failure here must not hide that Claude started.
+  if (sessionUrl) await rpc(env, 'hm_feedback_attach_session', { p_token: token, p_url: sessionUrl }).catch(() => null);
+  return json({ ok: true, open: check.open, sessionUrl });
 }
 
 export default {
