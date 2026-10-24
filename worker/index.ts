@@ -131,7 +131,7 @@ export default {
           // plain text body
         }
         const parsed = parseBankSms(text.slice(0, 2000));
-        if (!parsed) return json({ ok: true, added: false });
+        if (!parsed) return json({ ok: true, added: false, reason: 'not_a_spend', got: text.slice(0, 200) });
         const out = await rpc(env, 'hm_sms_expense', {
           p_key: url.searchParams.get('k') ?? '',
           p_amount: parsed.amount,

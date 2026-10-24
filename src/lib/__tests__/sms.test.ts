@@ -27,3 +27,10 @@ describe('smsHash', () => {
     expect(await smsHash('a  b')).toBe(await smsHash('a b '));
   });
 });
+
+describe('parseBankSms wording', () => {
+  it('reads amount after the word and plain debit', () => {
+    expect(parseBankSms('A/c XX12 debit 450 INR at Zomato')?.amount).toBe(450);
+    expect(parseBankSms('Txn of Rs 75 done')?.amount).toBe(75);
+  });
+});
