@@ -6,6 +6,7 @@
 // they need the PUSH_SECRET Worker secret, whose sha256 is in hm_config.
 
 import { WIDGET_BODY } from '../src/lib/widget';
+import { parseBankSms, smsHash } from '../src/lib/sms';
 import { sendPush, type PushTarget } from './push';
 
 interface Env {
@@ -113,6 +114,32 @@ export default {
       try {
         const out = await rpc(env, 'hm_widget', { p_key: url.searchParams.get('k') ?? '' });
         return new Response(JSON.stringify(out), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+      } catch {
+        return json({ ok: false, error: true }, 502);
+      }
+    }
+    // Bank SMS from an iPhone Shortcuts automation: POST the message text, it becomes an expense.
+    if (url.pathname === '/api/sms') {
+      if (req.method !== 'POST') return json({ ok: false }, 405);
+      try {
+        const raw = await req.text();
+        let text = raw;
+        try {
+          const j = JSON.parse(raw) as { text?: unknown };
+          if (typeof j?.text === 'string') text = j.text;
+        } catch {
+          // plain text body
+        }
+        const parsed = parseBankSms(text.slice(0, 2000));
+        if (!parsed) return json({ ok: true, added: false });
+        const out = await rpc(env, 'hm_sms_expense', {
+          p_key: url.searchParams.get('k') ?? '',
+          p_amount: parsed.amount,
+          p_date: new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10),
+          p_note: parsed.note,
+          p_hash: await smsHash(text),
+        });
+        return json({ ...out, added: !!out.ok && !out.duplicate }, out.ok ? 200 : 403);
       } catch {
         return json({ ok: false, error: true }, 502);
       }

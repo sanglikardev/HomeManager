@@ -93,6 +93,7 @@ export function MoreView({ onBack, onTour }: { onBack?: () => void; onTour?: () 
       )}
       {cloud && <NotificationsCard />}
       {cloud && <WidgetCard />}
+      {cloud && <SmsCard />}
       {cloud && (
         <button onClick={() => setFeedback(true)} className="flex w-full items-center gap-3 rounded-2xl bg-white px-4 py-3 text-left ring-1 ring-stone-200">
           <MessageSquare size={18} className="text-teal-700" />
@@ -275,6 +276,56 @@ function WidgetCard() {
           </button>
           <textarea readOnly className={`${inputCls} h-28 font-mono text-xs`} value={script} onFocus={(e) => e.target.select()} />
           <p className="mt-2 text-xs text-stone-500">The script has a private key for your home. Setting up again makes a new key and the old widget stops working.</p>
+        </>
+      )}
+    </section>
+  );
+}
+
+function SmsCard() {
+  const toast = useToast();
+  const [url, setUrl] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const make = async () => {
+    setBusy(true);
+    try {
+      const { data, error } = await supabase().rpc('hm_sms_key', { p_token: getToken() });
+      if (error) throw new Error(error.message);
+      setUrl(`${window.location.origin}/api/sms?k=${data as string}`);
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <section className="rounded-2xl bg-white p-4 ring-1 ring-stone-200">
+      <h2 className="mb-1 flex items-center gap-2 font-semibold">
+        <MessageSquare size={18} className="text-teal-700" /> Bank SMS to expenses
+      </h2>
+      {!url ? (
+        <>
+          <p className="mb-3 text-sm text-stone-600">An iPhone Shortcuts automation sends each bank SMS here and money spent is added to Money. Only the amount and shop are read.</p>
+          <button onClick={make} disabled={busy} className="w-full rounded-xl bg-stone-100 py-2.5 text-sm font-semibold text-stone-800">
+            {busy ? 'Making…' : 'Set up SMS expenses'}
+          </button>
+        </>
+      ) : (
+        <>
+          <ol className="mb-3 list-decimal space-y-1 pl-5 text-sm text-stone-600">
+            <li>Copy the link below.</li>
+            <li>Open the Shortcuts app, Automation tab, tap +, choose Message. Under Message Contains type a word your bank uses, like "debited" or "spent". Pick Run Immediately.</li>
+            <li>Add the action Get Contents of URL. Paste the link, tap Show More, set Method to POST, Request Body to File, and choose Shortcut Input.</li>
+            <li>Repeat for each bank word you want (for example "spent"). Credits and OTPs are ignored.</li>
+          </ol>
+          <button
+            onClick={() => navigator.clipboard?.writeText(url).then(() => toast('Link copied'), () => toast('Could not copy. Select the text below instead.'))}
+            className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-teal-700 py-2.5 text-sm font-semibold text-white"
+          >
+            <Copy size={16} /> Copy link
+          </button>
+          <textarea readOnly className={`${inputCls} h-20 font-mono text-xs`} value={url} onFocus={(e) => e.target.select()} />
+          <p className="mt-2 text-xs text-stone-500">The link has a private key for your home. Setting up again makes a new key and the old one stops working. Repeated messages are only added once.</p>
         </>
       )}
     </section>
