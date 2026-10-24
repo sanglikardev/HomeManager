@@ -122,16 +122,23 @@ export default {
     if (url.pathname === '/api/sms') {
       if (req.method !== 'POST') return json({ ok: false }, 405);
       try {
-        const raw = await req.text();
-        let text = raw;
-        try {
-          const j = JSON.parse(raw) as { text?: unknown };
-          if (typeof j?.text === 'string') text = j.text;
-        } catch {
-          // plain text body
+        const ctype = req.headers.get('content-type') ?? '';
+        let text = '';
+        if (ctype.includes('multipart/form-data') || ctype.includes('x-www-form-urlencoded')) {
+          const v = (await req.formData()).get('text');
+          text = typeof v === 'string' ? v : '';
+        } else {
+          const raw = await req.text();
+          text = raw;
+          try {
+            const j = JSON.parse(raw) as { text?: unknown };
+            if (typeof j?.text === 'string') text = j.text;
+          } catch {
+            // plain text body
+          }
         }
         const parsed = parseBankSms(text.slice(0, 2000));
-        if (!parsed) return json({ ok: true, added: false, reason: 'not_a_spend', got: text.slice(0, 200) });
+        if (!parsed) return json({ ok: true, added: false, reason: text.trim() ? 'not_a_spend' : 'empty_body', type: req.headers.get('content-type'), got: text.slice(0, 200) });
         const out = await rpc(env, 'hm_sms_expense', {
           p_key: url.searchParams.get('k') ?? '',
           p_amount: parsed.amount,
