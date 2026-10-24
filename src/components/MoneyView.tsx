@@ -184,7 +184,7 @@ function ExpenseList({ expenses, today, onOpen }: { expenses: Expense[]; today: 
       {expenses.map((e) => (
         <button key={e.id} onClick={() => onOpen(e)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
           <div className="min-w-0 flex-1">
-            <p className="truncate font-medium text-stone-900">{e.note || e.category}</p>
+            <p className="truncate font-medium text-stone-900">{e.note.split('\n')[0] || e.category}</p>
             <p className="text-xs text-stone-500">
               {friendlyDate(e.date, today)}
               {e.note ? ` · ${e.category}` : ''}

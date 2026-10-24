@@ -157,7 +157,7 @@ export default {
           p_key: url.searchParams.get('k') ?? '',
           p_amount: parsed.amount,
           p_date: pickDate(parsed.date),
-          p_note: parsed.note,
+          p_note: `${parsed.note}\n${text.replace(/\s+/g, ' ').trim()}`,
           p_hash: await smsHash(text),
         });
         return json({ ...out, added: !!out.ok && !out.duplicate }, out.ok ? 200 : 403);

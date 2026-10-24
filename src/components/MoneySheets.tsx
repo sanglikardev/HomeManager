@@ -122,7 +122,11 @@ export function ExpenseSheet({ expense, defaults, onClose }: { expense: Expense 
         <CategoryChips categories={categories.includes(category) || !category ? categories : [...categories, category]} value={category} onChange={setCategory} />
       </div>
       <Field label="What for (optional)">
-        <input id="expense-note" className={inputCls} placeholder="e.g. Electricity bill, Swiggy" value={note} onChange={(e) => setNote(e.target.value)} />
+        {note.includes('\n') ? (
+          <textarea id="expense-note" className={`${inputCls} h-32 text-sm`} value={note} onChange={(e) => setNote(e.target.value)} />
+        ) : (
+          <input id="expense-note" className={inputCls} placeholder="e.g. Electricity bill, Swiggy" value={note} onChange={(e) => setNote(e.target.value)} />
+        )}
       </Field>
       <div className="grid grid-cols-2 gap-3">
         <Field label="Date">
