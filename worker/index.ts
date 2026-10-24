@@ -123,13 +123,18 @@ export default {
       if (req.method !== 'POST') return json({ ok: false }, 405);
       try {
         const ctype = req.headers.get('content-type') ?? '';
-        let text = '';
-        if (ctype.includes('multipart/form-data') || ctype.includes('x-www-form-urlencoded')) {
-          const v = (await req.formData()).get('text');
-          text = typeof v === 'string' ? v : '';
+        const raw = await req.text();
+        let text = raw;
+        if (ctype.includes('multipart/form-data')) {
+          // Shortcuts' Form body: take the part named "text" (or the first part).
+          const parts = raw.split(/\r?\n--[^\r\n]*/);
+          const body = (part: string) => part.replace(/^[\s\S]*?\r?\n\r?\n/, '').replace(/\r?\n$/, '');
+          const real = parts.filter((x) => /content-disposition/i.test(x));
+          const hit = real.find((x) => /name="?text"?/i.test(x)) ?? real[0];
+          text = hit ? body(hit) : '';
+        } else if (ctype.includes('x-www-form-urlencoded')) {
+          text = new URLSearchParams(raw).get('text') ?? '';
         } else {
-          const raw = await req.text();
-          text = raw;
           try {
             const j = JSON.parse(raw) as { text?: unknown };
             if (typeof j?.text === 'string') text = j.text;
@@ -147,8 +152,8 @@ export default {
           p_hash: await smsHash(text),
         });
         return json({ ...out, added: !!out.ok && !out.duplicate }, out.ok ? 200 : 403);
-      } catch {
-        return json({ ok: false, error: true }, 502);
+      } catch (e) {
+        return json({ ok: false, error: true, message: e instanceof Error ? e.message : String(e) }, 502);
       }
     }
     if (url.pathname === '/api/push/test') {
