@@ -25,13 +25,13 @@ export function parseBankSms(text: string): ParsedSms | null {
 
 function merchant(t: string): string {
   const pats = [
+    /\binfo[:\s-]*([A-Za-z0-9*@&._' /-]{2,40}?)(?=\.\s*(?:avl|bal|to|if)\b|[,;]|\s{2}|$)/i,
     /\b(?:at|to|towards)\s+(?:vpa\s+)?([A-Za-z0-9@&._' -]{2,40}?)(?=\s+(?:on|via|ref|using|from|upi|avl|available|bal|if|for|\.)|[.,;]|$)/i,
-    /\binfo[:\s-]+([A-Za-z0-9@&._' -]{2,40}?)(?=[.,;]|\s{2}|$)/i,
   ];
   for (const p of pats) {
     const m = p.exec(t);
     const v = m?.[1].trim();
-    if (v && !/^(?:a\/c|account|your|rs|inr|xx)/i.test(v)) return v;
+    if (v && !/^(?:a\/c|account|your|rs|inr|xx|dispute|[0-9 ]+$)/i.test(v)) return v.replace(/\*/g, ' ').replace(/\s+/g, ' ').trim();
   }
   return 'Bank SMS';
 }

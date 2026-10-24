@@ -34,3 +34,10 @@ describe('parseBankSms wording', () => {
     expect(parseBankSms('Txn of Rs 75 done')?.amount).toBe(75);
   });
 });
+
+describe('parseBankSms ICICI', () => {
+  it('reads the amount and Info text, not the helpline', () => {
+    const r = parseBankSms('ICICI Bank Acc XX615 debited Rs. 633.00 on 24-Oct-26 InfoBIL*ONL*00125.Avl Bal Rs. 4,99,424.11.To dispute call 18002662 or SMS BLOCK 615 to 9215676766');
+    expect(r).toEqual({ amount: 633, note: 'BIL ONL 00125' });
+  });
+});
