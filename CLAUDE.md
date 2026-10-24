@@ -21,7 +21,7 @@ upkeep task, plan, document, help day off, bug/idea.
   unpaid leave beyond free days minus advances; paying logs a Money expense) |
   Docs (warranties, IDs, policies with photos/PDFs and expiry reminders).
 - **Plans**: plans list first, then month/year calendar.
-- **Money**: month total with optional budget (warning from 80%), recurring bills, where it
+- **Money**: expenses are private per person (`hm_expenses.owner_id`); "Share my expenses with the household" (`hm_expense_sharing`, `hm_set_expense_sharing`) lets others view them read-only (chips Mine / name / Everyone shared). `hm_load` returns your own rows as `expenses` and others' shared rows as `shared_expenses`; `hm_upsert` forces `owner_id` to the signed-in account and only the owner can change a row. Month total with optional budget (warning from 80%), recurring bills, where it
   went, expenses, CSV export, "Budget & categories".
 - **To-do**: tasks with an optional due date (`hm_todos`). Open ones due within a week (or overdue) show in Today's "To do" list; due dates show as markers in the Plans calendar (day sheet ticks them off).
 - **Settings** (gear on Today): grouped Your home / Tabs / Today screen (show, hide, reorder blocks; stored in household settings: `disabledModules`, `todayOrder`, `todayHidden`) / Food & meals / Family / App
@@ -87,7 +87,7 @@ Check the result with the GitHub check run on the commit.
   `hm_load`'s output if needed, update `types.ts`.
 - Tables: hm_households, hm_household_members, hm_accounts, hm_sessions, hm_items,
   hm_dishes, hm_meals, hm_shopping, hm_pantry_events, hm_upkeep, hm_plans, hm_expenses, hm_bills,
-  hm_data_tables, hm_config,
+  hm_data_tables, hm_config, hm_expense_sharing, hm_sms_keys, hm_sms_seen,
   hm_feedback, hm_feedback_failures, hm_staff, hm_docs, hm_doc_files, hm_todos, hm_push_subs, hm_widget_keys.
   `hm_members` is an unused leftover.
 - Document files are base64 rows in `hm_doc_files` (written via hm_upsert, read one at a

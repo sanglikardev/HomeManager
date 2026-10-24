@@ -2,10 +2,11 @@ import { ChevronLeft, ChevronRight, Download, Plus, Receipt, Repeat, X } from 'l
 import { useMemo, useState } from 'react';
 import { friendlyDate, localDate } from '../lib/dates';
 import { billDueLabel, billStatus, budgetState, categoriesFor, changePct, expensesCsv, formatINR, monthLabel, monthOf, parseAmount, shiftMonth, summarize } from '../lib/money';
+import { setExpenseSharing } from '../store/backend';
 import { useStore } from '../store/store';
 import type { Bill, Expense } from '../types';
 import { BillSheet, ExpenseSheet, PayBillSheet } from './MoneySheets';
-import { Field, inputCls, Sheet } from './ui';
+import { Field, inputCls, Sheet, Toggle } from './ui';
 
 const BILL_STYLE = {
   overdue: 'text-rose-700',
@@ -18,12 +19,26 @@ export function MoneyView() {
   const today = localDate();
   const [month, setMonth] = useState(monthOf(today));
   const [editing, setEditing] = useState<Expense | 'new' | null>(null);
+  const [viewing, setViewing] = useState<Expense | null>(null);
+  const openExpense = (e: Expense) => (e.ownerId && e.ownerId !== store.data.me ? setViewing(e) : setEditing(e));
   const [billEditing, setBillEditing] = useState<Bill | 'new' | null>(null);
   const [paying, setPaying] = useState<Bill | null>(null);
   const [showAll, setShowAll] = useState(false);
   const [editCats, setEditCats] = useState(false);
 
-  const { expenses, bills } = store.data;
+  const { bills } = store.data;
+  const people = store.data.people ?? [];
+  const sharedAll = store.data.sharedExpenses ?? [];
+  const sharing = people.some((p) => p.id === store.data.me && p.shared);
+  // Mine by default; other people's expenses show only when they chose to share them.
+  const [whose, setWhose] = useState<'mine' | 'all' | string>('mine');
+  const sharers = people.filter((p) => p.id !== store.data.me && p.shared && sharedAll.some((e) => e.ownerId === p.id));
+  const who = whose === 'mine' || whose === 'all' || sharers.some((p) => p.id === whose) ? whose : 'mine';
+  const expenses = useMemo(
+    () => (who === 'mine' ? store.data.expenses : who === 'all' ? [...store.data.expenses, ...sharedAll] : sharedAll.filter((e) => e.ownerId === who)),
+    [who, store.data.expenses, sharedAll],
+  );
+  const nameOf = (id?: string) => people.find((p) => p.id === id)?.name ?? '';
   const summary = useMemo(() => summarize(expenses, month), [expenses, month]);
   const prev = useMemo(() => summarize(expenses, shiftMonth(month, -1)), [expenses, month]);
   const change = changePct(summary.total, prev.total);
@@ -32,7 +47,7 @@ export function MoneyView() {
   const maxCat = summary.byCategory[0]?.total ?? 0;
   const list = showAll ? summary.expenses : summary.expenses.slice(0, 10);
   const settings = store.data.household.settings;
-  const budget = budgetState(summary.total, settings.monthlyBudget);
+  const budget = who === 'mine' ? budgetState(summary.total, settings.monthlyBudget) : null;
   const csvHref = `data:text/csv;charset=utf-8,${encodeURIComponent(expensesCsv(summary.expenses))}`;
 
   return (
@@ -43,6 +58,30 @@ export function MoneyView() {
           <Plus size={16} /> Expense
         </button>
       </header>
+
+      {people.length > 1 && (
+        <section className="rounded-2xl bg-white px-4 py-2 ring-1 ring-stone-200">
+          {sharers.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pb-2 pt-1">
+              {[{ id: 'mine', label: 'Mine' }, ...sharers.map((p) => ({ id: p.id, label: p.name })), ...(sharers.length > 1 ? [{ id: 'all', label: 'Everyone shared' }] : [])].map((c) => (
+                <button key={c.id} onClick={() => setWhose(c.id)} className={`rounded-full px-3 py-1 text-sm ${who === c.id ? 'bg-teal-700 text-white' : 'bg-stone-100 text-stone-700'}`}>
+                  {c.label}
+                </button>
+              ))}
+            </div>
+          )}
+          <Toggle
+            on={sharing}
+            label="Share my expenses with the household"
+            onChange={(v) => {
+              setExpenseSharing(v)
+                .then(() => store.reload())
+                .catch(() => {});
+            }}
+          />
+          <p className="pb-1 text-xs text-stone-500">Your expenses are private unless you switch this on. Others can see them but not change them.</p>
+        </section>
+      )}
 
       <section className="rounded-3xl bg-gradient-to-br from-teal-700 to-teal-600 px-5 py-4 text-white">
         <div className="flex items-center justify-between">
@@ -137,7 +176,7 @@ export function MoneyView() {
       {summary.count > 8 && (
         <section>
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Biggest expenses</h2>
-          <ExpenseList expenses={summary.top} today={today} onOpen={setEditing} />
+          <ExpenseList expenses={summary.top} today={today} onOpen={openExpense} nameOf={who === 'all' ? nameOf : undefined} />
         </section>
       )}
 
@@ -145,7 +184,7 @@ export function MoneyView() {
         <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">All expenses</h2>
         {summary.expenses.length ? (
           <>
-            <ExpenseList expenses={list} today={today} onOpen={setEditing} />
+            <ExpenseList expenses={list} today={today} onOpen={openExpense} nameOf={who === 'all' ? nameOf : undefined} />
             {summary.expenses.length > list.length && (
               <button onClick={() => setShowAll(true)} className="mt-2 w-full text-center text-sm font-medium text-teal-700">
                 Show all {summary.expenses.length}
@@ -171,6 +210,16 @@ export function MoneyView() {
       </div>
 
       {editCats && <CategoriesSheet onClose={() => setEditCats(false)} />}
+      {viewing && (
+        <Sheet title={`${nameOf(viewing.ownerId) || 'Shared'}'s expense`} onClose={() => setViewing(null)}>
+          <p className="text-3xl font-bold text-stone-900">{formatINR(viewing.amount)}</p>
+          <p className="mt-1 text-sm text-stone-500">
+            {friendlyDate(viewing.date, today)} · {viewing.category}
+          </p>
+          {viewing.note && <p className="mt-3 whitespace-pre-line rounded-xl bg-stone-50 p-3 text-sm text-stone-700">{viewing.note}</p>}
+          <p className="mt-3 text-xs text-stone-500">Shared with you. Only {nameOf(viewing.ownerId) || 'they'} can change it.</p>
+        </Sheet>
+      )}
       {editing && <ExpenseSheet expense={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
       {billEditing && <BillSheet bill={billEditing === 'new' ? null : billEditing} onClose={() => setBillEditing(null)} />}
       {paying && <PayBillSheet bill={paying} onClose={() => setPaying(null)} />}
@@ -178,7 +227,7 @@ export function MoneyView() {
   );
 }
 
-function ExpenseList({ expenses, today, onOpen }: { expenses: Expense[]; today: string; onOpen: (e: Expense) => void }) {
+function ExpenseList({ expenses, today, onOpen, nameOf }: { expenses: Expense[]; today: string; onOpen: (e: Expense) => void; nameOf?: (id?: string) => string }) {
   return (
     <div className="divide-y divide-stone-100 rounded-2xl bg-white ring-1 ring-stone-200">
       {expenses.map((e) => (
@@ -189,6 +238,7 @@ function ExpenseList({ expenses, today, onOpen }: { expenses: Expense[]; today: 
               {friendlyDate(e.date, today)}
               {e.note ? ` · ${e.category}` : ''}
               {e.paidBy ? ` · ${e.paidBy}` : ''}
+              {nameOf && nameOf(e.ownerId) ? ` · ${nameOf(e.ownerId)}` : ''}
             </p>
           </div>
           <span className="font-semibold text-stone-900">{formatINR(e.amount)}</span>

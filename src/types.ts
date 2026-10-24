@@ -256,6 +256,7 @@ export interface Expense {
   billId: string | null;
   source: 'manual' | 'shopping' | 'bill';
   createdAt: string;
+  ownerId?: string; // who made it (set by the database; expenses are private unless shared)
 }
 
 export type BillFrequency = 'monthly' | 'quarterly' | 'yearly';
@@ -354,6 +355,13 @@ export interface Todo {
   createdAt: string;
 }
 
+// A member of the home, for sharing expenses.
+export interface Person {
+  id: string;
+  name: string;
+  shared: boolean; // shares their expenses with the home
+}
+
 export interface AppData {
   household: Household;
   items: Item[];
@@ -368,4 +376,7 @@ export interface AppData {
   staff: Staff[];
   docs: HomeDoc[];
   todos: Todo[];
+  sharedExpenses?: Expense[]; // other members' expenses they chose to share (read only)
+  people?: Person[];
+  me?: string; // my account id
 }

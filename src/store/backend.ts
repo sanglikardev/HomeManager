@@ -1,5 +1,5 @@
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
-import type { AppData, Household } from '../types';
+import type { AppData, Household, Person } from '../types';
 
 // The app keeps everything in memory and writes changes through a Backend.
 // "local" keeps data in this browser (no setup needed, handy for trying it
@@ -229,6 +229,11 @@ export interface FeedbackItem {
   sessionUrl: string | null; // the Claude session that worked on it
 }
 
+export async function setExpenseSharing(shared: boolean): Promise<void> {
+  const { error } = await supabase().rpc('hm_set_expense_sharing', { p_token: getToken(), p_shared: shared });
+  if (error) throw new Error(error.message);
+}
+
 export async function listFeedback(): Promise<{ enabled: boolean; items: FeedbackItem[] }> {
   const { data, error } = await supabase().rpc('hm_feedback_list', { p_token: getToken() });
   if (error) throw new Error(error.message);
@@ -273,6 +278,9 @@ export class CloudBackend implements Backend {
       staff: list('staff'),
       docs: list('docs'),
       todos: list('todos'),
+      sharedExpenses: list('shared_expenses'),
+      people: (raw.people as Person[]) ?? [],
+      me: (raw.me as string) ?? undefined,
     };
   }
 
