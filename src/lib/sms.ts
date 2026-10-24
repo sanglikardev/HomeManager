@@ -3,6 +3,7 @@
 
 export interface ParsedSms {
   amount: number;
+  date: string | null; // YYYY-MM-DD when the SMS says one ("on 24-Oct-26")
   note: string; // where it went, e.g. "Swiggy"
 }
 
@@ -22,7 +23,22 @@ export function parseBankSms(text: string): ParsedSms | null {
   if (!m) return null;
   const amount = Math.round(Number((m[1] ?? m[2]).replace(/,/g, '')) * 100) / 100;
   if (!Number.isFinite(amount) || amount <= 0) return null;
-  return { amount, note: merchant(t) };
+  return { amount, date: smsDate(t), note: merchant(t) };
+}
+
+const MONTHS = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+// "on 24-Oct-26" / "24-10-2026" -> 2026-10-24, so older messages land on the day they happened.
+export function smsDate(t: string): string | null {
+  const m = /\b(\d{1,2})[-/ ]([A-Za-z]{3}|\d{1,2})[-/ ](\d{4}|\d{2})\b/.exec(t);
+  if (!m) return null;
+  const mon = /^\d+$/.test(m[2]) ? Number(m[2]) : MONTHS.indexOf(m[2].toLowerCase()) + 1;
+  const day = Number(m[1]);
+  const year = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+  if (mon < 1 || mon > 12 || day < 1 || day > 31) return null;
+  const d = new Date(Date.UTC(year, mon - 1, day));
+  if (d.getUTCMonth() !== mon - 1) return null;
+  return d.toISOString().slice(0, 10);
 }
 
 function merchant(t: string): string {

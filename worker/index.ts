@@ -54,6 +54,13 @@ async function pushTest(req: Request, env: Env): Promise<Response> {
   return json({ ok: true, ...(await deliver(env, batch)) });
 }
 
+// The date in the SMS, unless it is missing, in the future or over a year old: then today (India time).
+function pickDate(d: string | null): string {
+  const today = new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10);
+  if (!d || d > today || d < `${Number(today.slice(0, 4)) - 1}${today.slice(4)}`) return today;
+  return d;
+}
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
@@ -149,7 +156,7 @@ export default {
         const out = await rpc(env, 'hm_sms_expense', {
           p_key: url.searchParams.get('k') ?? '',
           p_amount: parsed.amount,
-          p_date: new Date(Date.now() + 5.5 * 3600_000).toISOString().slice(0, 10),
+          p_date: pickDate(parsed.date),
           p_note: parsed.note,
           p_hash: await smsHash(text),
         });
