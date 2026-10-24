@@ -314,9 +314,10 @@ function SmsCard() {
         <>
           <ol className="mb-3 list-decimal space-y-1 pl-5 text-sm text-stone-600">
             <li>Copy the link below.</li>
-            <li>Open the Shortcuts app, Automation tab, tap +, choose Message. Under Message Contains type a word your bank uses, like "debited" or "spent". Pick Run Immediately.</li>
-            <li>Add the action Get Contents of URL. Paste the link, tap Show More, set Method to POST and Request Body to Form. Add a Text field named text and tap its value, then choose Shortcut Input (it shows as Message). If it still says nothing was received, add a Get Text from Input action first and use its result.</li>
-            <li>Repeat for each bank word you want (for example "spent"). Credits and OTPs are ignored.</li>
+            <li>Open the Shortcuts app and make a shortcut: Find Messages where Body contains "debited" (sort latest first, limit 1), then Get Details of Messages (Content).</li>
+            <li>Add Get Contents of URL. Paste the link, set Method to POST and Request Body to Form. Add a Text field named text and set its value to the Content from the previous step (plain text, not the Message itself).</li>
+            <li>Run it by hand, or add an Automation (Time of Day, Run Immediately) so it runs on its own. A message is only added once, so running again is safe.</li>
+            <li>Make another copy with a different word (for example "spent") if your bank uses one. Credits and OTPs are ignored.</li>
           </ol>
           <button
             onClick={() => navigator.clipboard?.writeText(url).then(() => toast('Link copied'), () => toast('Could not copy. Select the text below instead.'))}
