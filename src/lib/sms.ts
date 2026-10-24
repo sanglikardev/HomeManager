@@ -9,11 +9,13 @@ export interface ParsedSms {
 const AMOUNT = /(?:rs\.?|inr|₹)\s*([0-9][0-9,]*(?:\.[0-9]{1,2})?)|\b([0-9][0-9,]*(?:\.[0-9]{1,2})?)\s*(?:rs\.?|inr|₹)/i;
 const OUT = /\b(debited|debit|spent|paid|purchase|withdrawn|sent|deducted|txn of|txn|transaction|payment of|payment|dr)\b/i;
 const IN = /\b(credited|received|refund(?:ed)?|deposited|cashback|reversed)\b/i;
+// Heads-ups about a debit that has not happened (or did not): not an expense yet.
+const NOT_YET = /\b(will be debited|to be debited|not debited|is due|due by|requested money|mandate (?:created|registered))\b/i;
 const OTP = /\b(otp|one[- ]time|verification code|password)\b/i;
 
 export function parseBankSms(text: string): ParsedSms | null {
   const t = text.replace(/\s+/g, ' ').trim();
-  if (!t || OTP.test(t) || !OUT.test(t)) return null;
+  if (!t || OTP.test(t) || NOT_YET.test(t) || !OUT.test(t)) return null;
   // "credited" with no debit wording is money in; a message with both ("debited ... credited to X") is a payment.
   if (IN.test(t) && !/\b(debited|debit|spent|paid|withdrawn|sent|deducted|dr)\b/i.test(t)) return null;
   const m = AMOUNT.exec(t);
@@ -25,6 +27,7 @@ export function parseBankSms(text: string): ParsedSms | null {
 
 function merchant(t: string): string {
   const pats = [
+    /;\s*([A-Za-z0-9&._' -]{2,40}?)\s+credited\b/i,
     /\binfo[:\s-]*([A-Za-z0-9*@&._' /-]{2,40}?)(?=\.\s*(?:avl|bal|to|if)\b|[,;]|\s{2}|$)/i,
     /\b(?:at|to|towards)\s+(?:vpa\s+)?([A-Za-z0-9@&._' -]{2,40}?)(?=\s+(?:on|via|ref|using|from|upi|avl|available|bal|if|for|\.)|[.,;]|$)/i,
   ];
