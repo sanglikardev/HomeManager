@@ -120,10 +120,11 @@ export default {
     }
     // Bank SMS from an iPhone Shortcuts automation: POST the message text, it becomes an expense.
     if (url.pathname === '/api/sms') {
-      if (req.method !== 'POST') return json({ ok: false }, 405);
+      if (req.method !== 'POST' && req.method !== 'GET') return json({ ok: false }, 405);
       try {
         const ctype = req.headers.get('content-type') ?? '';
-        const raw = await req.text();
+        // GET (or an empty body) can carry the message as ?text=, for Shortcuts setups where a body won't send.
+        const raw = req.method === 'GET' ? '' : await req.text();
         let text = raw;
         if (ctype.includes('multipart/form-data')) {
           // Shortcuts' Form body: take the part named "text" (or the first part).
@@ -142,6 +143,7 @@ export default {
             // plain text body
           }
         }
+        if (!text.trim()) text = url.searchParams.get('text') ?? '';
         const parsed = parseBankSms(text.slice(0, 2000));
         if (!parsed) return json({ ok: true, added: false, reason: text.trim() ? 'not_a_spend' : 'empty_body', type: req.headers.get('content-type'), got: text.slice(0, 200) });
         const out = await rpc(env, 'hm_sms_expense', {
