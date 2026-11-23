@@ -125,6 +125,18 @@ export default {
         return json({ ok: false, error: true }, 502);
       }
     }
+    // Habits widget: tick or untick a habit for today (the widget key only reaches its own home's habits).
+    if (url.pathname === '/api/widget/toggle') {
+      if (req.method !== 'POST') return json({ ok: false }, 405);
+      const habit = url.searchParams.get('h') ?? '';
+      if (!/^[0-9a-f-]{36}$/i.test(habit)) return json({ ok: false, reason: 'habit' }, 400);
+      try {
+        const out = await rpc(env, 'hm_widget_toggle', { p_key: url.searchParams.get('k') ?? '', p_habit: habit });
+        return new Response(JSON.stringify(out), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });
+      } catch {
+        return json({ ok: false, error: true }, 502);
+      }
+    }
     // Bank SMS from an iPhone Shortcuts automation: POST the message text, it becomes an expense.
     if (url.pathname === '/api/sms') {
       if (req.method !== 'POST' && req.method !== 'GET') return json({ ok: false }, 405);

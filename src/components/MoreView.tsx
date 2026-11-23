@@ -254,7 +254,7 @@ function WidgetCard() {
       </h2>
       {!script ? (
         <>
-          <p className="mb-3 text-sm text-stone-600">Today's meals, what's due, things to buy, your habits and your next trip on the home screen. Or a habits-only widget. Uses the free Scriptable app.</p>
+          <p className="mb-3 text-sm text-stone-600">Today's habits on your home screen. Tap a habit to tick it off (or untick it). Uses the free Scriptable app.</p>
           <button onClick={make} disabled={busy} className="w-full rounded-xl bg-stone-100 py-2.5 text-sm font-semibold text-stone-800">
             {busy ? 'Making…' : 'Set up the widget'}
           </button>
@@ -266,10 +266,10 @@ function WidgetCard() {
               Install <a href="https://apps.apple.com/app/scriptable/id1405459188" target="_blank" rel="noreferrer" className="font-medium text-teal-700">Scriptable</a> from the App Store.
             </li>
             <li>Copy the script below. In Scriptable tap +, paste it, and name it HomeManager.</li>
-            <li>Long-press the home screen, tap Edit, then Add Widget, Scriptable, a medium size. Tap the widget and choose the HomeManager script.</li>
+            <li>Long-press the home screen, tap Edit, then Add Widget, Scriptable, a medium or large size. Long-press the widget, Edit Widget, choose the HomeManager script, and set When Interacting to Run Script.</li>
           </ol>
           <p className="mb-3 rounded-xl bg-orange-50 p-3 text-sm text-orange-900">
-            <b>Habits widget:</b> add a second Scriptable widget with the same script and type <b>habits</b> in its Parameter box. It lists today's habits with progress; tap it to open Habits and log.
+            Tapping a habit ticks it in Scriptable for a moment (iPhone only lets App Store apps tick in place), then swipe back home. For the old home summary instead, type <b>home</b> in the widget's Parameter box.
           </p>
           <button
             onClick={() => navigator.clipboard?.writeText(script).then(() => toast('Script copied'), () => toast('Could not copy. Select the text below instead.'))}

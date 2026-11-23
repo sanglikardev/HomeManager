@@ -105,8 +105,10 @@ Check the result with the GitHub check run on the commit.
   `hm_widget_keys`) and a small Scriptable loader script. The loader fetches the layout
   (`WIDGET_BODY` in `src/lib/widget.ts`, served at `/api/widget.js`) and the data from
   `GET /api/widget?k=` (Worker -> `hm_widget`), so layout changes need no re-paste.
-  Widget Parameter `habits` shows a habits-only widget (`hm_habits_today` in hm_widget's `habits`);
-  the normal widget gets a "Habits: 1 of 3 done" line.
+  The widget shows today's habits by default (`hm_habits_today` in hm_widget's `habits`). Tapping a
+  habit runs the script in Scriptable with `?toggle=<id>` -> `POST /api/widget/toggle?k=&h=` ->
+  `hm_widget_toggle` (tick/untick; count habits +step, at the goal takes back the last entry).
+  Nothing opens in the browser. Widget Parameter `home` shows the older home summary.
 - Save every schema change as the next numbered file in `supabase/migrations/`.
 - Changes containing DROP/DELETE/REVOKE need a human to approve in Supabase; the
   connector's apply_migration times out waiting. Give such SQL to the owner to run in the
