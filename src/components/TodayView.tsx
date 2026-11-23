@@ -1,9 +1,8 @@
-import { CalendarDays, Check, ChefHat, ChevronDown, Clock, HelpCircle, Plus, RotateCcw, Send, ShoppingCart, Sparkles, Undo2, UserRound, UtensilsCrossed, Wallet } from 'lucide-react';
+import { CalendarDays, Check, ChefHat, ChevronDown, Clock, Plus, Send, ShoppingCart, Sparkles, Undo2, UserRound, UtensilsCrossed, Wallet } from 'lucide-react';
 import { Fragment, useMemo, useState } from 'react';
 import { addDays, localDate, parseLocalDate, WEEKDAYS } from '../lib/dates';
 import { billsDue, budgetState, monthOf, summarize } from '../lib/money';
 import { activeTrip, countdown, upcomingPlans } from '../lib/plans';
-import { pickQuestions, type Question } from '../lib/questions';
 import { suggest, type Suggestion } from '../lib/suggest';
 import { offToday } from '../lib/staff';
 import { moduleOn, todayCards, type CardId } from '../lib/modules';
@@ -14,7 +13,6 @@ import { AwayCard, TodoCard, type Go } from './ComingUp';
 import { HabitsCard } from './HabitsView';
 import { MealPickerSheet } from './MealPickerSheet';
 import { useToast } from './toast';
-import { LevelPicker } from './ui';
 
 const SLOT_LABEL: Record<Slot, string> = { breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner' };
 
@@ -47,15 +45,6 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
     for (const meal of data.meals) if (meal.date === date) (m[meal.slot] ??= []).push(meal);
     return m;
   }, [data.meals, date]);
-
-  const questions = useMemo(() => {
-    const relevant = new Set<string>();
-    for (const slot of settings.slots) {
-      if (logged[slot]) continue;
-      bySlot[slot]?.forEach((s) => s.dish.ingredients.forEach((i) => relevant.add(i.itemId)));
-    }
-    return pickQuestions(data.items, relevant, now);
-  }, [data.items, bySlot, logged, settings.slots, now]);
 
   const minutes = day === 'today' ? now.getHours() * 60 + now.getMinutes() : 0;
   const plan = mealPlanOfDay(settings.slots, logged, minutes);
@@ -243,7 +232,6 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
       )}
       </>
     ),
-    quick: !away && !preview && questions.length > 0 ? <QuestionsCard questions={questions} /> : null,
     todo: <TodoCard date={date} onGo={onGo} />,
     habits: day === 'today' && moduleOn(settings, 'habits') ? <HabitsCard onGo={() => onGo('habits')} /> : null,
   };
@@ -370,37 +358,5 @@ function LoggedRow({ slot, meals, onUndo, onAdd }: { slot: Slot; meals: MealLog[
         ))}
       </ul>
     </div>
-  );
-}
-
-function QuestionsCard({ questions }: { questions: Question[] }) {
-  const store = useStore();
-  const q = questions[0];
-  return (
-    <section className="rounded-3xl bg-violet-50 p-4 ring-1 ring-violet-200">
-      <h2 className="mb-2 flex items-center gap-2 text-sm font-semibold text-violet-950">
-        <HelpCircle size={16} className="text-violet-600" /> Quick check
-        {questions.length > 1 && <span className="ml-auto text-xs font-normal text-violet-700">{questions.length} left</span>}
-      </h2>
-      <p className="mb-2 text-sm text-violet-950">{q.text}</p>
-      {q.kind === 'fresh' ? (
-        <div className="grid grid-cols-3 gap-1.5 text-sm">
-          <button onClick={() => store.setItemLevel(q.item.id, Math.max(0.2, q.item.level), 'correction')} className="rounded-xl border border-violet-200 bg-white py-2 font-medium text-stone-700">
-            Still good
-          </button>
-          <button onClick={() => store.setItemLevel(q.item.id, 0, 'correction')} className="rounded-xl border border-violet-200 bg-white py-2 font-medium text-stone-700">
-            Finished
-          </button>
-          <button onClick={() => store.setItemLevel(q.item.id, 0, 'spoiled')} className="rounded-xl border border-violet-200 bg-white py-2 font-medium text-stone-700">
-            Threw away
-          </button>
-        </div>
-      ) : (
-        <LevelPicker value={null} onPick={(v) => store.setItemLevel(q.item.id, v, 'correction')} size="sm" />
-      )}
-      <button onClick={() => store.skipQuestion(q.item.id)} className="mt-1.5 flex items-center gap-1 text-xs text-violet-700">
-        <RotateCcw size={12} /> Ask me later
-      </button>
-    </section>
   );
 }

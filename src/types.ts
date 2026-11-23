@@ -157,8 +157,8 @@ export interface HouseholdSettings {
   expenseCategories?: string[]; // custom list; defaults to DEFAULT_EXPENSE_CATEGORIES
   monthlyBudget?: number; // optional total budget per month, in rupees
   disabledModules?: ('food' | 'home' | 'plans' | 'money' | 'todos' | 'habits')[]; // tabs switched off in Settings
-  todayOrder?: ('status' | 'meals' | 'quick' | 'todo' | 'habits')[]; // order of the Today blocks
-  todayHidden?: ('status' | 'meals' | 'quick' | 'todo' | 'habits')[]; // Today blocks switched off
+  todayOrder?: ('status' | 'meals' | 'todo' | 'habits')[]; // order of the Today blocks
+  todayHidden?: ('status' | 'meals' | 'todo' | 'habits')[]; // Today blocks switched off
 }
 
 export interface Household {

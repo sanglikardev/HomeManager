@@ -12,8 +12,9 @@ upkeep task, plan, document, help day off, bug/idea.
 
 - **Today**: a one-screen briefing. Status chips (bills due, budget, to buy, help off,
   next plan), the next meal by time of day (top pick, "Other ideas", later meals folded),
-  one pantry question at a time, and one "To do" list (routine, bills, upkeep, documents
-  expiring, plan tasks). Away mode during trips.
+  habits, and one "To do" list (routine, bills, upkeep, documents
+  expiring, plan tasks). Away mode during trips. The pantry "Quick check" question was
+  removed from Today at the owner's request (`src/lib/questions.ts` is kept but unused).
 - **Food**: Shopping (list first; shelf tabs; WhatsApp/copy icons) | Pantry (opens on
   "Low or use soon", categories folded under All) | Dishes.
 - **Home**: Upkeep (priority list, "when was it last done?" prompts) | Routine (weekly

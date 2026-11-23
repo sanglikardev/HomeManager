@@ -4,7 +4,7 @@ import { moduleOn, moveCard, todayCards, todayOrder, toggled } from '../modules'
 describe('modules', () => {
   it('everything is on by default', () => {
     expect(moduleOn({}, 'money')).toBe(true);
-    expect(todayCards({})).toEqual(['status', 'meals', 'quick', 'todo', 'habits']);
+    expect(todayCards({})).toEqual(['status', 'meals', 'todo', 'habits']);
   });
 
   it('switches a module off', () => {
@@ -13,20 +13,22 @@ describe('modules', () => {
   });
 
   it('keeps the saved order and appends cards it does not know about', () => {
-    expect(todayOrder({ todayOrder: ['todo', 'meals'] })).toEqual(['todo', 'meals', 'status', 'quick', 'habits']);
-    expect(todayOrder({ todayOrder: ['todo', 'todo', 'gone' as never] })).toEqual(['todo', 'status', 'meals', 'quick', 'habits']);
+    expect(todayOrder({ todayOrder: ['todo', 'meals'] })).toEqual(['todo', 'meals', 'status', 'habits']);
+    expect(todayOrder({ todayOrder: ['todo', 'todo', 'gone' as never] })).toEqual(['todo', 'status', 'meals', 'habits']);
   });
 
   it('hides cards without losing their place', () => {
-    const s = { todayOrder: ['todo', 'meals', 'status', 'quick', 'habits'] as const, todayHidden: ['meals' as const] };
-    expect(todayCards({ ...s, todayOrder: [...s.todayOrder] })).toEqual(['todo', 'status', 'quick', 'habits']);
+    const s = { todayOrder: ['todo', 'meals', 'status', 'habits'] as const, todayHidden: ['meals' as const] };
+    expect(todayCards({ ...s, todayOrder: [...s.todayOrder] })).toEqual(['todo', 'status', 'habits']);
   });
 
   it('moves a card up and down, stopping at the ends', () => {
-    expect(moveCard({}, 'meals', -1)).toEqual(['meals', 'status', 'quick', 'todo', 'habits']);
-    expect(moveCard({}, 'status', -1)).toEqual(['status', 'meals', 'quick', 'todo', 'habits']);
-    expect(moveCard({}, 'habits', 1)).toEqual(['status', 'meals', 'quick', 'todo', 'habits']);
-    expect(moveCard({}, 'todo', 1)).toEqual(['status', 'meals', 'quick', 'habits', 'todo']);
+    expect(moveCard({}, 'meals', -1)).toEqual(['meals', 'status', 'todo', 'habits']);
+    expect(moveCard({}, 'status', -1)).toEqual(['status', 'meals', 'todo', 'habits']);
+    expect(moveCard({}, 'habits', 1)).toEqual(['status', 'meals', 'todo', 'habits']);
+    expect(moveCard({}, 'todo', 1)).toEqual(['status', 'meals', 'habits', 'todo']);
+    // A saved order from before the pantry quick check was removed still works.
+    expect(todayOrder({ todayOrder: ['quick' as never, 'todo'] })).toEqual(['todo', 'status', 'meals', 'habits']);
   });
 
   it('toggles a value in a list', () => {

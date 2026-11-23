@@ -12,11 +12,10 @@ export const MODULES: { id: ModuleId; label: string; hint: string }[] = [
 ];
 
 // Blocks on the Today screen, in their default order.
-export type CardId = 'status' | 'meals' | 'quick' | 'todo' | 'habits';
+export type CardId = 'status' | 'meals' | 'todo' | 'habits';
 export const TODAY_CARDS: { id: CardId; label: string; hint: string }[] = [
   { id: 'status', label: 'Status chips', hint: 'Bills due, budget, to buy, help off, next plan' },
   { id: 'meals', label: 'Meals', hint: 'What to cook next' },
-  { id: 'quick', label: 'Quick check', hint: 'One pantry question at a time' },
   { id: 'todo', label: 'To do', hint: 'Routine, bills, upkeep, documents, plan tasks' },
   { id: 'habits', label: 'Habits', hint: "Today's habits with one-tap logging" },
 ];
