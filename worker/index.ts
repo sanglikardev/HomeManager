@@ -22,7 +22,7 @@ const PUSH_SUBJECT = 'https://homemanager.sanglikardev.workers.dev';
 
 interface PushBatch {
   vapid: JsonWebKey | null;
-  items: (PushTarget & { id: string; title: string; body: string })[];
+  items: (PushTarget & { id: string; title: string; body: string; url?: string; tag?: string })[];
 }
 
 // Sends a batch; subscriptions the push service no longer knows are switched off.
@@ -33,7 +33,7 @@ async function deliver(env: Env, batch: PushBatch): Promise<{ sent: number; fail
   let failed = 0;
   for (const it of batch.items) {
     try {
-      const status = await sendPush(it, { title: it.title, body: it.body, url: '/' }, batch.vapid, PUSH_SUBJECT);
+      const status = await sendPush(it, { title: it.title, body: it.body, url: it.url ?? '/', tag: it.tag ?? 'homemanager-daily' }, batch.vapid, PUSH_SUBJECT);
       if (status === 404 || status === 410) gone.push(it.id);
       else if (status >= 200 && status < 300) sent++;
       else failed++;
@@ -176,7 +176,7 @@ export default {
     return env.ASSETS.fetch(req);
   },
 
-  // Hourly: morning summaries whose local hour has come.
+  // Hourly: morning summaries whose local hour has come, and habit reminders for this hour.
   async scheduled(_event: unknown, env: Env, ctx: { waitUntil: (p: Promise<unknown>) => void }) {
     if (!env.PUSH_SECRET) return;
     ctx.waitUntil(

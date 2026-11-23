@@ -4,7 +4,7 @@ import { moduleOn, moveCard, todayCards, todayOrder, toggled } from '../modules'
 describe('modules', () => {
   it('everything is on by default', () => {
     expect(moduleOn({}, 'money')).toBe(true);
-    expect(todayCards({})).toEqual(['status', 'meals', 'quick', 'todo']);
+    expect(todayCards({})).toEqual(['status', 'meals', 'quick', 'todo', 'habits']);
   });
 
   it('switches a module off', () => {
@@ -13,19 +13,20 @@ describe('modules', () => {
   });
 
   it('keeps the saved order and appends cards it does not know about', () => {
-    expect(todayOrder({ todayOrder: ['todo', 'meals'] })).toEqual(['todo', 'meals', 'status', 'quick']);
-    expect(todayOrder({ todayOrder: ['todo', 'todo', 'gone' as never] })).toEqual(['todo', 'status', 'meals', 'quick']);
+    expect(todayOrder({ todayOrder: ['todo', 'meals'] })).toEqual(['todo', 'meals', 'status', 'quick', 'habits']);
+    expect(todayOrder({ todayOrder: ['todo', 'todo', 'gone' as never] })).toEqual(['todo', 'status', 'meals', 'quick', 'habits']);
   });
 
   it('hides cards without losing their place', () => {
-    const s = { todayOrder: ['todo', 'meals', 'status', 'quick'] as const, todayHidden: ['meals' as const] };
-    expect(todayCards({ ...s, todayOrder: [...s.todayOrder] })).toEqual(['todo', 'status', 'quick']);
+    const s = { todayOrder: ['todo', 'meals', 'status', 'quick', 'habits'] as const, todayHidden: ['meals' as const] };
+    expect(todayCards({ ...s, todayOrder: [...s.todayOrder] })).toEqual(['todo', 'status', 'quick', 'habits']);
   });
 
   it('moves a card up and down, stopping at the ends', () => {
-    expect(moveCard({}, 'meals', -1)).toEqual(['meals', 'status', 'quick', 'todo']);
-    expect(moveCard({}, 'status', -1)).toEqual(['status', 'meals', 'quick', 'todo']);
-    expect(moveCard({}, 'todo', 1)).toEqual(['status', 'meals', 'quick', 'todo']);
+    expect(moveCard({}, 'meals', -1)).toEqual(['meals', 'status', 'quick', 'todo', 'habits']);
+    expect(moveCard({}, 'status', -1)).toEqual(['status', 'meals', 'quick', 'todo', 'habits']);
+    expect(moveCard({}, 'habits', 1)).toEqual(['status', 'meals', 'quick', 'todo', 'habits']);
+    expect(moveCard({}, 'todo', 1)).toEqual(['status', 'meals', 'quick', 'habits', 'todo']);
   });
 
   it('toggles a value in a list', () => {
@@ -46,6 +47,8 @@ describe('onboarding', () => {
     const some = tourSlides({ disabledModules: ['food', 'money'] }).map((s) => s.title);
     expect(some).not.toContain('Kitchen');
     expect(some).not.toContain('Money');
+    expect(all).toContain('Habits');
+    expect(tourSlides({ disabledModules: ['habits'] }).map((s) => s.title)).not.toContain('Habits');
     expect(some[0]).toBe('Today is your home base');
     expect(some[some.length - 1]).toBe('The + button adds anything');
   });

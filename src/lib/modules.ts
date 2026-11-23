@@ -1,22 +1,24 @@
 import type { HouseholdSettings } from '../types';
 
 // Tabs a home can switch off. Today and Settings are always there.
-export type ModuleId = 'food' | 'home' | 'plans' | 'money' | 'todos';
+export type ModuleId = 'food' | 'home' | 'plans' | 'money' | 'todos' | 'habits';
 export const MODULES: { id: ModuleId; label: string; hint: string }[] = [
   { id: 'food', label: 'Kitchen', hint: 'Shopping list, pantry, dishes' },
   { id: 'home', label: 'Home', hint: 'Upkeep, routine, help, documents' },
   { id: 'plans', label: 'Plans', hint: 'Plans, trips and the calendar' },
   { id: 'money', label: 'Money', hint: 'Expenses, bills and budget' },
   { id: 'todos', label: 'To-do', hint: 'Tasks with due dates, shown in the Plans calendar' },
+  { id: 'habits', label: 'Habits', hint: 'Water, reading, workouts: quick logging, streaks and reminders' },
 ];
 
 // Blocks on the Today screen, in their default order.
-export type CardId = 'status' | 'meals' | 'quick' | 'todo';
+export type CardId = 'status' | 'meals' | 'quick' | 'todo' | 'habits';
 export const TODAY_CARDS: { id: CardId; label: string; hint: string }[] = [
   { id: 'status', label: 'Status chips', hint: 'Bills due, budget, to buy, help off, next plan' },
   { id: 'meals', label: 'Meals', hint: 'What to cook next' },
   { id: 'quick', label: 'Quick check', hint: 'One pantry question at a time' },
   { id: 'todo', label: 'To do', hint: 'Routine, bills, upkeep, documents, plan tasks' },
+  { id: 'habits', label: 'Habits', hint: "Today's habits with one-tap logging" },
 ];
 
 type Layout = Pick<HouseholdSettings, 'disabledModules' | 'todayOrder' | 'todayHidden'>;
@@ -68,6 +70,7 @@ export function tourSlides(settings: Layout): TourSlide[] {
   if (moduleOn(settings, 'food')) slides.push({ title: 'Kitchen', text: 'Keep a shopping list you can send on WhatsApp, track what is in your pantry, and get meal ideas from the dishes you cook.' });
   if (moduleOn(settings, 'home')) slides.push({ title: 'Home', text: 'Upkeep reminders, a weekly routine, household help with salary and days off, and documents like warranties and IDs.' });
   if (moduleOn(settings, 'money')) slides.push({ title: 'Money', text: 'See what you spent this month, set a budget, and never miss a recurring bill.' });
+  if (moduleOn(settings, 'habits')) slides.push({ title: 'Habits', text: 'Drink water, read, work out: log with one tap from Today, keep a streak, add notes like a new personal best, and get a reminder on your phone.' });
   if (moduleOn(settings, 'plans') || moduleOn(settings, 'todos')) slides.push({ title: 'Plans and to-dos', text: 'Plans, trips and tasks with due dates all show up on one calendar.' });
   slides.push({ title: 'The + button adds anything', text: 'Tap + at the bottom right to add an expense, shopping item, task, plan or document. Settings (the gear on Today) lets you change tabs any time, and you can replay this tour there.' });
   return slides;

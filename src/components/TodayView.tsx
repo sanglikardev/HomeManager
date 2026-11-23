@@ -11,6 +11,7 @@ import { mealLine, mealPlanOfDay, menuText } from '../lib/today';
 import { useStore } from '../store/store';
 import type { MealLog, Slot } from '../types';
 import { AwayCard, TodoCard, type Go } from './ComingUp';
+import { HabitsCard } from './HabitsView';
 import { MealPickerSheet } from './MealPickerSheet';
 import { useToast } from './toast';
 import { LevelPicker } from './ui';
@@ -244,6 +245,7 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
     ),
     quick: !away && !preview && questions.length > 0 ? <QuestionsCard questions={questions} /> : null,
     todo: <TodoCard date={date} onGo={onGo} />,
+    habits: day === 'today' && moduleOn(settings, 'habits') ? <HabitsCard onGo={() => onGo('habits')} /> : null,
   };
 
   return (

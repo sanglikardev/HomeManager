@@ -23,6 +23,10 @@ upkeep task, plan, document, help day off, bug/idea.
 - **Plans**: plans list first, then month/year calendar.
 - **Money**: expenses are private per person (`hm_expenses.owner_id`); "Share my expenses with the household" (`hm_expense_sharing`, `hm_set_expense_sharing`) lets others view them read-only (chips Mine / name / Everyone shared). `hm_load` returns your own rows as `expenses` and others' shared rows as `shared_expenses`; `hm_upsert` forces `owner_id` to the signed-in account and only the owner can change a row. Month total with optional budget (warning from 80%), recurring bills, where it
   went, expenses, CSV export, "Budget & categories".
+- **Habits**: shared household habits (`hm_habits`, `hm_habit_logs`): a tick a day or a number a day
+  (8 glasses), every day / some weekdays / N times a week. One-tap logging on the Habits tab, Today's
+  "Habits" block and "+ > Log a habit"; notes per log (workout details, PRs); streaks and a 5-week grid.
+  Reminder hours per habit go out with the hourly push cron (`hm_push_habits`), only if not done yet.
 - **To-do**: tasks with an optional due date (`hm_todos`). Open ones due within a week (or overdue) show in Today's "To do" list; due dates show as markers in the Plans calendar (day sheet ticks them off).
 - **Settings** (gear on Today): grouped Your home / Tabs / Today screen (show, hide, reorder blocks; stored in household settings: `disabledModules`, `todayOrder`, `todayHidden`) / Food & meals / Family / App
   (notifications, feedback, sign out). Feedback icon on Today shows a badge when Claude replied.
@@ -40,7 +44,7 @@ src/types.ts             all record types
 src/store/backend.ts     LocalBackend (localStorage) and CloudBackend (Supabase RPCs), sign-in, feedback calls
 src/store/store.tsx      in-memory store, actions, persistence, shopping-list sync
 src/store/push.ts        phone notification subscribe/unsubscribe/test (VAPID public key)
-src/lib/                 pure logic: modules, todos, pantry, suggest, questions, upkeep, plans, calendar, money, staff, docs, today, dates (tested)
+src/lib/                 pure logic: modules, todos, habits, pantry, suggest, questions, upkeep, plans, calendar, money, staff, docs, today, dates (tested)
 src/lib/__tests__/       vitest tests
 src/components/          one file per screen/sheet; shared bits in ui.tsx and toast.tsx
 src/data/                seed items, dishes, upkeep templates
@@ -88,7 +92,8 @@ Check the result with the GitHub check run on the commit.
 - Tables: hm_households, hm_household_members, hm_accounts, hm_sessions, hm_items,
   hm_dishes, hm_meals, hm_shopping, hm_pantry_events, hm_upkeep, hm_plans, hm_expenses, hm_bills,
   hm_data_tables, hm_config, hm_expense_sharing, hm_sms_keys, hm_sms_seen,
-  hm_feedback, hm_feedback_failures, hm_staff, hm_docs, hm_doc_files, hm_todos, hm_push_subs, hm_widget_keys.
+  hm_feedback, hm_feedback_failures, hm_staff, hm_docs, hm_doc_files, hm_todos, hm_habits, hm_habit_logs,
+  hm_push_subs, hm_widget_keys.
   `hm_members` is an unused leftover.
 - Document files are base64 rows in `hm_doc_files` (written via hm_upsert, read one at a
   time with `hm_doc_file(token, id)`, never in hm_load). Photos are shrunk client-side.

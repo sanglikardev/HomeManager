@@ -1,4 +1,4 @@
-import { Bug, CalendarDays, FileText, IndianRupee, ListChecks, ShoppingCart, UserRound, Wrench } from 'lucide-react';
+import { Bug, CalendarDays, Target, FileText, IndianRupee, ListChecks, ShoppingCart, UserRound, Wrench } from 'lucide-react';
 import { useState } from 'react';
 import { moduleOn, type ModuleId } from '../lib/modules';
 import { useStore } from '../store/store';
@@ -11,10 +11,11 @@ import { PlanSheet } from './PlansView';
 import { useToast } from './toast';
 import { Field, inputCls, PrimaryButton, Segmented, Sheet } from './ui';
 import { TodoSheet } from './TodosView';
+import { QuickHabitSheet } from './HabitsView';
 import { UpkeepSheet } from './UpkeepSheet';
 import type { Dest } from './ComingUp';
 
-type What = 'todo' | 'expense' | 'shopping' | 'upkeep' | 'plan' | 'leave' | 'doc' | 'feedback';
+type What = 'habit' | 'todo' | 'expense' | 'shopping' | 'upkeep' | 'plan' | 'leave' | 'doc' | 'feedback';
 
 // The one "+" button: add anything from any screen.
 export function QuickAdd({ onClose, onGo }: { onClose: () => void; onGo: (to: Dest) => void }) {
@@ -25,6 +26,7 @@ export function QuickAdd({ onClose, onGo }: { onClose: () => void; onGo: (to: De
     onClose();
   };
 
+  if (what === 'habit') return <QuickHabitSheet onClose={done} />;
   if (what === 'todo') return <TodoSheet todo={null} onClose={done} />;
   if (what === 'expense') return <ExpenseSheet expense={null} onClose={done} />;
   if (what === 'shopping') return <ShoppingAddSheet onClose={done} />;
@@ -36,6 +38,7 @@ export function QuickAdd({ onClose, onGo }: { onClose: () => void; onGo: (to: De
 
   const all: { id: What; label: string; hint: string; icon: typeof Bug; cls: string; module?: ModuleId }[] = [
     { id: 'todo', label: 'To-do', hint: 'Task with a due date', icon: ListChecks, cls: 'bg-emerald-50 text-emerald-700', module: 'todos' },
+    { id: 'habit', label: store.data.habits.length ? 'Log a habit' : 'Habit', hint: store.data.habits.length ? 'Tick, count, add a note' : 'Water, reading, workouts', icon: Target, cls: 'bg-orange-50 text-orange-700', module: 'habits' },
     { id: 'expense', label: 'Expense', hint: 'Money spent', icon: IndianRupee, cls: 'bg-teal-50 text-teal-700', module: 'money' },
     { id: 'shopping', label: 'To buy', hint: 'Shopping list', icon: ShoppingCart, cls: 'bg-amber-50 text-amber-700', module: 'food' },
     { id: 'upkeep', label: 'Upkeep task', hint: 'Repeats or renews', icon: Wrench, cls: 'bg-rose-50 text-rose-700', module: 'home' },

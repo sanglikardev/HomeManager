@@ -156,9 +156,9 @@ export interface HouseholdSettings {
   weekState?: Record<string, WeekMark>; // done / moved marks for routine items, keyed `${item}@${original date}`
   expenseCategories?: string[]; // custom list; defaults to DEFAULT_EXPENSE_CATEGORIES
   monthlyBudget?: number; // optional total budget per month, in rupees
-  disabledModules?: ('food' | 'home' | 'plans' | 'money' | 'todos')[]; // tabs switched off in Settings
-  todayOrder?: ('status' | 'meals' | 'quick' | 'todo')[]; // order of the Today blocks
-  todayHidden?: ('status' | 'meals' | 'quick' | 'todo')[]; // Today blocks switched off
+  disabledModules?: ('food' | 'home' | 'plans' | 'money' | 'todos' | 'habits')[]; // tabs switched off in Settings
+  todayOrder?: ('status' | 'meals' | 'quick' | 'todo' | 'habits')[]; // order of the Today blocks
+  todayHidden?: ('status' | 'meals' | 'quick' | 'todo' | 'habits')[]; // Today blocks switched off
 }
 
 export interface Household {
@@ -355,6 +355,40 @@ export interface Todo {
   createdAt: string;
 }
 
+// ---------- habits ----------
+
+// Anything the home wants to do regularly: a tick a day ("Work out") or a number
+// a day ("Drink water", 8 glasses). Shared by the household.
+export type HabitKind = 'check' | 'count';
+export type HabitSchedule = 'daily' | 'days' | 'weekly';
+
+export interface Habit {
+  id: string;
+  name: string;
+  emoji: string;
+  kind: HabitKind;
+  target: number; // per day: 1 for a tick, e.g. 8 glasses
+  unit: string; // glasses, pages, minutes...
+  step: number; // added by one quick tap
+  schedule: HabitSchedule;
+  days: number[]; // 0 = Sunday, when schedule = 'days'
+  perWeek: number; // when schedule = 'weekly'
+  reminderHours: number[]; // local hours (0-23) for a phone nudge
+  archived: boolean;
+  notes: string;
+  createdAt: string;
+}
+
+// One tap or entry. A day's progress is the sum of its logs.
+export interface HabitLog {
+  id: string;
+  habitId: string;
+  date: string; // YYYY-MM-DD
+  amount: number;
+  note: string; // e.g. "Squat 80 kg x 5, new PR"
+  createdAt: string;
+}
+
 // A member of the home, for sharing expenses.
 export interface Person {
   id: string;
@@ -376,6 +410,8 @@ export interface AppData {
   staff: Staff[];
   docs: HomeDoc[];
   todos: Todo[];
+  habits: Habit[];
+  habitLogs: HabitLog[];
   sharedExpenses?: Expense[]; // other members' expenses they chose to share (read only)
   people?: Person[];
   me?: string; // my account id

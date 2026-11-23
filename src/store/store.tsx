@@ -8,6 +8,8 @@ import type {
   AppData,
   Bill,
   Todo,
+  Habit,
+  HabitLog,
   Bucket,
   Dish,
   Expense,
@@ -40,6 +42,8 @@ interface Change {
   staff?: Staff[];
   docs?: HomeDoc[];
   todos?: Todo[];
+  habits?: Habit[];
+  habitLogs?: HabitLog[];
   removed?: Partial<Record<TableName, string[]>>;
   docFiles?: DocFile[]; // written after the docs they belong to
   removedDocFiles?: string[];
@@ -66,6 +70,8 @@ function applyChange(data: AppData, c: Change): AppData {
   next.staff = merge(data.staff, c.staff, c.removed?.staff);
   next.docs = merge(data.docs, c.docs, c.removed?.docs);
   next.todos = merge(data.todos, c.todos, c.removed?.todos);
+  next.habits = merge(data.habits, c.habits, c.removed?.habits);
+  next.habitLogs = merge(data.habitLogs, c.habitLogs, c.removed?.habitLogs);
   return next;
 }
 
@@ -115,6 +121,10 @@ export interface Store {
   deleteBill(id: string): void;
   saveTodo(todo: Todo): void;
   deleteTodo(id: string): void;
+  saveHabit(habit: Habit): void;
+  deleteHabit(id: string): void;
+  saveHabitLogs(logs: HabitLog[]): void;
+  deleteHabitLogs(ids: string[]): void;
   payBill(billId: string, amount: number, date: string): string | null; // id of the logged expense
   // Undo for a payment: puts the bill back and removes the expense.
   unpayBill(before: Bill, expenseId: string): void;
@@ -149,7 +159,7 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
       // Writes go out one batch at a time, in order.
       queue.current = queue.current
         .then(async () => {
-          const tables: TableName[] = ['items', 'dishes', 'meals', 'shopping', 'events', 'upkeep', 'plans', 'expenses', 'bills', 'staff', 'docs', 'todos'];
+          const tables: TableName[] = ['items', 'dishes', 'meals', 'shopping', 'events', 'upkeep', 'plans', 'expenses', 'bills', 'staff', 'docs', 'todos', 'habits', 'habitLogs'];
           for (const t of tables) {
             const rows = c[t] as object[] | undefined;
             if (rows?.length) await backend.upsert(t, rows);
@@ -389,6 +399,11 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
       deleteBill: (id) => commit(() => ({ removed: { bills: [id] } }), false),
       saveTodo: (todo) => commit(() => ({ todos: [todo] }), false),
       deleteTodo: (id) => commit(() => ({ removed: { todos: [id] } }), false),
+      saveHabit: (habit) => commit(() => ({ habits: [habit] }), false),
+      // The database drops a habit's logs with it; drop them here too.
+      deleteHabit: (id) => commit((d) => ({ removed: { habits: [id], habitLogs: d.habitLogs.filter((l) => l.habitId === id).map((l) => l.id) } }), false),
+      saveHabitLogs: (logs) => commit(() => ({ habitLogs: logs }), false),
+      deleteHabitLogs: (ids) => commit(() => ({ removed: { habitLogs: ids } }), false),
       payBill: (billId, amount, date) => {
         const bill = dataRef.current.bills.find((b) => b.id === billId);
         if (!bill) return null;

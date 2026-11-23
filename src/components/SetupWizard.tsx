@@ -56,6 +56,8 @@ export function SetupWizard({ onDone, busy }: { onDone: (data: AppData) => void;
       staff: [],
       docs: [],
       todos: [],
+      habits: [],
+      habitLogs: [],
     });
   };
 

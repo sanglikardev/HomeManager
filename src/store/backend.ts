@@ -8,7 +8,7 @@ import type { AppData, Household, Person } from '../types';
 // Cloud sign-in is HomeManager's own username + password (see
 // supabase/migrations/0002_username_login.sql), not Supabase Auth.
 
-export type TableName = 'items' | 'dishes' | 'meals' | 'shopping' | 'events' | 'upkeep' | 'plans' | 'expenses' | 'bills' | 'staff' | 'docs' | 'todos';
+export type TableName = 'items' | 'dishes' | 'meals' | 'shopping' | 'events' | 'upkeep' | 'plans' | 'expenses' | 'bills' | 'staff' | 'docs' | 'todos' | 'habits' | 'habitLogs';
 
 const TABLES: Record<TableName, string> = {
   items: 'hm_items',
@@ -23,6 +23,8 @@ const TABLES: Record<TableName, string> = {
   staff: 'hm_staff',
   docs: 'hm_docs',
   todos: 'hm_todos',
+  habits: 'hm_habits',
+  habitLogs: 'hm_habit_logs',
 };
 
 export interface DocFile {
@@ -68,6 +70,8 @@ export class LocalBackend implements Backend {
         this.data.staff ??= [];
         this.data.docs ??= [];
         this.data.todos ??= [];
+        this.data.habits ??= [];
+        this.data.habitLogs ??= [];
       }
     } catch {
       this.data = null;
@@ -278,6 +282,8 @@ export class CloudBackend implements Backend {
       staff: list('staff'),
       docs: list('docs'),
       todos: list('todos'),
+      habits: list('habits'),
+      habitLogs: list('habit_logs'),
       sharedExpenses: list('shared_expenses'),
       people: (raw.people as Person[]) ?? [],
       me: (raw.me as string) ?? undefined,
