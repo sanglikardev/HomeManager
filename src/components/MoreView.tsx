@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowDown, ArrowUp, Bell, Copy, Info, LogOut, MessageSquare, Smartphone, Users } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { moduleOn, MODULES, moveCard, TODAY_CARDS, todayOrder, toggled } from '../lib/modules';
 import { widgetScript } from '../lib/widget';
 import { getToken, resetLocalData, signOut, supabase } from '../store/backend';
@@ -235,7 +235,11 @@ function WidgetCard() {
   const toast = useToast();
   const [script, setScript] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // One key per tap: a second key would switch off the first, leaving the copied script with a dead key.
+  const making = useRef(false);
   const make = async () => {
+    if (making.current) return;
+    making.current = true;
     setBusy(true);
     try {
       const { data, error } = await supabase().rpc('hm_widget_key', { p_token: getToken() });
@@ -243,6 +247,7 @@ function WidgetCard() {
       setScript(widgetScript(data as string, window.location.origin));
     } catch (e) {
       toast(e instanceof Error ? e.message : String(e));
+      making.current = false;
     } finally {
       setBusy(false);
     }
@@ -289,7 +294,11 @@ function SmsCard() {
   const toast = useToast();
   const [url, setUrl] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  // One key per tap: a second key would switch off the first, leaving the copied script with a dead key.
+  const making = useRef(false);
   const make = async () => {
+    if (making.current) return;
+    making.current = true;
     setBusy(true);
     try {
       const { data, error } = await supabase().rpc('hm_sms_key', { p_token: getToken() });
