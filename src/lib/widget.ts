@@ -4,7 +4,7 @@
 //
 // By default the widget shows today's habits. Tapping a habit runs this script in
 // Scriptable with ?toggle=<habit id>: it ticks or unticks the habit (POST
-// /api/widget/toggle) and shows the updated widget. Nothing opens in the browser.
+// /api/widget/toggle), shows a short notification and stops: no preview, no browser.
 // iOS only allows true in-place widget buttons for App Store apps, so Scriptable
 // comes to the front for a moment. Widget Parameter "home" shows the old home summary.
 
@@ -35,22 +35,36 @@ async function load() {
   }
 }
 
+const num = (n) => String(Math.round(Number(n) * 100) / 100);
+
+// After a tick: a short banner instead of a preview, then stop. iOS keeps Scriptable
+// in front for a moment; swiping up goes back home.
+async function done(res) {
+  const n = new Notification();
+  n.title = !res.ok ? 'Could not update' : res.done ? '✓ ' + res.name + ' done' : res.amount > 0 ? res.name + ': ' + num(res.amount) + ' so far' : res.name + ': not done';
+  if (!res.ok) n.body = res.offline ? 'No connection. Try again.' : 'Make a new widget script in the app.';
+  await n.schedule();
+  Script.complete();
+}
+
 // Tapped a habit on the widget.
-let toggled = null;
-if (params.toggle) toggled = await toggle(params.toggle);
+if (params.toggle) {
+  await done(await toggle(params.toggle));
+  return;
+}
 
 let d = await load();
 
 // Opened in Scriptable without a habit (e.g. tapped a small widget): pick one from a list.
-if (!config.runsInWidget && !params.toggle && mode !== 'home' && d.ok && (d.habits || []).length) {
+if (!config.runsInWidget && mode !== 'home' && d.ok && (d.habits || []).length) {
   const a = new Alert();
   a.title = 'Tick a habit';
   for (const h of d.habits) a.addAction((h.done ? '✓ ' : '') + (h.emoji ? h.emoji + ' ' : '') + h.name);
-  a.addCancelAction('Close');
+  a.addCancelAction('Show widget');
   const i = await a.presentSheet();
   if (i >= 0) {
-    toggled = await toggle(d.habits[i].id);
-    d = await load();
+    await done(await toggle(d.habits[i].id));
+    return;
   }
 }
 
@@ -58,7 +72,6 @@ const WHITE = Color.white();
 const SOFT = new Color('#99f6e4');
 const DIM = new Color('#ccfbf1', 0.75);
 const GREEN = new Color('#34d399');
-const num = (n) => String(Math.round(Number(n) * 100) / 100);
 
 function bar(width, height, frac, fill) {
   const c = new DrawContext();
@@ -216,10 +229,6 @@ function habitsWidget() {
     }
   }
 
-  if (toggled) {
-    w.addSpacer(4);
-    text(w, toggled.ok ? (toggled.done ? '✓ ' + toggled.name + ' done' : toggled.name + ': ' + (toggled.amount > 0 ? num(toggled.amount) + ' so far' : 'not done')) : 'Could not update. Try again.', Font.mediumSystemFont(10), SOFT);
-  }
   w.addSpacer();
   return w;
 }

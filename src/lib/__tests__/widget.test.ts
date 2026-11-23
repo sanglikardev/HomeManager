@@ -13,6 +13,7 @@ interface Run {
   requests: { url: string; method?: string }[];
   presented: boolean;
   set: boolean;
+  notes: string[];
 }
 
 // Swallows any property, call or construction (fonts, colors, images, paths...).
@@ -24,8 +25,8 @@ const any: () => unknown = () =>
     set: () => true,
   });
 
-async function render(data: object, opts: { param?: string; query?: Record<string, string>; inWidget?: boolean; family?: string; afterToggle?: object; pick?: number } = {}): Promise<Run> {
-  const run: Run = { rows: [], requests: [], presented: false, set: false };
+async function render(data: object, opts: { param?: string; query?: Record<string, string>; inWidget?: boolean; family?: string; pick?: number } = {}): Promise<Run> {
+  const run: Run = { rows: [], requests: [], presented: false, set: false, notes: [] };
   const texts: { text: string; node: Node }[] = [];
   const g = globalThis as Record<string, unknown>;
   class Stack implements Node {
@@ -55,7 +56,7 @@ async function render(data: object, opts: { param?: string; query?: Record<strin
       run.presented = true;
     }
   }
-  let current = data;
+  const current = data;
   g.Request = class {
     url: string;
     method?: string;
@@ -65,7 +66,6 @@ async function render(data: object, opts: { param?: string; query?: Record<strin
     async loadJSON() {
       run.requests.push({ url: this.url, method: this.method });
       if (this.url.includes('/toggle')) {
-        if (opts.afterToggle) current = opts.afterToggle;
         return { ok: true, name: 'Work out', amount: 1, done: true };
       }
       return current;
@@ -87,6 +87,12 @@ async function render(data: object, opts: { param?: string; query?: Record<strin
     addCancelAction() {}
     async presentSheet() {
       return opts.pick ?? -1;
+    }
+  };
+  g.Notification = class {
+    title = '';
+    async schedule() {
+      run.notes.push(this.title);
     }
   };
   g.args = { widgetParameter: opts.param ?? null, queryParameters: opts.query ?? {} };
@@ -139,20 +145,22 @@ describe('widget', () => {
     expect(names).not.toContain('3 / 8 glasses'); // compact rows skip the detail line
   });
 
-  it('ticks a tapped habit, then shows the updated widget', async () => {
-    const after = { ...data, habits: habits.map((h) => (h.id === 'h2' ? { ...h, amount: 1, done: true } : h)) };
-    const run = await render(data, { inWidget: false, query: { toggle: 'h2' }, afterToggle: after });
-    expect(run.requests[0]).toEqual({ url: 'https://s/api/widget/toggle?k=k&h=h2', method: 'POST' });
-    expect(run.presented).toBe(true);
-    expect(run.rows.map((r) => r.text)).toContain('✓ Work out done');
-    expect(run.rows.map((r) => r.text)).toContain('2/3');
+  it('ticks a tapped habit with just a notification: no preview, nothing else loaded', async () => {
+    const run = await render(data, { inWidget: false, query: { toggle: 'h2' } });
+    expect(run.requests).toEqual([{ url: 'https://s/api/widget/toggle?k=k&h=h2', method: 'POST' }]);
+    expect(run.notes).toEqual(['✓ Work out done']);
+    expect(run.presented).toBe(false);
+    expect(run.rows).toEqual([]);
   });
 
   it('offers a list to tick when opened without a habit (small widget tap)', async () => {
     const run = await render(data, { inWidget: false, pick: 1 });
     expect(run.requests.some((r) => r.url.includes('/toggle') && r.url.endsWith('h=h2'))).toBe(true);
+    expect(run.presented).toBe(false);
+    expect(run.notes).toEqual(['✓ Work out done']);
     const none = await render(data, { inWidget: false, pick: -1 });
     expect(none.requests.some((r) => r.url.includes('/toggle'))).toBe(false);
+    expect(none.presented).toBe(true); // "Show widget" previews it
   });
 
   it('explains a bad key or an empty day', async () => {

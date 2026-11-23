@@ -274,7 +274,7 @@ function WidgetCard() {
             <li>Long-press the home screen, tap Edit, then Add Widget, Scriptable, a medium or large size. Long-press the widget, Edit Widget, choose the HomeManager script, and set When Interacting to Run Script.</li>
           </ol>
           <p className="mb-3 rounded-xl bg-orange-50 p-3 text-sm text-orange-900">
-            Tapping a habit ticks it in Scriptable for a moment (iPhone only lets App Store apps tick in place), then swipe back home. For the old home summary instead, type <b>home</b> in the widget's Parameter box.
+            Tapping a habit ticks it and shows a short notification. Scriptable comes to the front for a moment (iPhone only lets App Store apps tick in place); swipe up to go back home. For the old home summary instead, type <b>home</b> in the widget's Parameter box.
           </p>
           <button
             onClick={() => navigator.clipboard?.writeText(script).then(() => toast('Script copied'), () => toast('Could not copy. Select the text below instead.'))}

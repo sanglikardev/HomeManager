@@ -108,7 +108,7 @@ Check the result with the GitHub check run on the commit.
   The widget shows today's habits by default (`hm_habits_today` in hm_widget's `habits`). Tapping a
   habit runs the script in Scriptable with `?toggle=<id>` -> `POST /api/widget/toggle?k=&h=` ->
   `hm_widget_toggle` (tick/untick; count habits +step, at the goal takes back the last entry).
-  Nothing opens in the browser. Widget Parameter `home` shows the older home summary.
+  A short notification confirms it (no preview, no browser). Widget Parameter `home` shows the older home summary.
 - Save every schema change as the next numbered file in `supabase/migrations/`.
 - Changes containing DROP/DELETE/REVOKE need a human to approve in Supabase; the
   connector's apply_migration times out waiting. Give such SQL to the owner to run in the
