@@ -254,7 +254,7 @@ function WidgetCard() {
       </h2>
       {!script ? (
         <>
-          <p className="mb-3 text-sm text-stone-600">Today's meals, what's due, things to buy and your next trip on the home screen. Uses the free Scriptable app.</p>
+          <p className="mb-3 text-sm text-stone-600">Today's meals, what's due, things to buy, your habits and your next trip on the home screen. Or a habits-only widget. Uses the free Scriptable app.</p>
           <button onClick={make} disabled={busy} className="w-full rounded-xl bg-stone-100 py-2.5 text-sm font-semibold text-stone-800">
             {busy ? 'Making…' : 'Set up the widget'}
           </button>
@@ -268,6 +268,9 @@ function WidgetCard() {
             <li>Copy the script below. In Scriptable tap +, paste it, and name it HomeManager.</li>
             <li>Long-press the home screen, tap Edit, then Add Widget, Scriptable, a medium size. Tap the widget and choose the HomeManager script.</li>
           </ol>
+          <p className="mb-3 rounded-xl bg-orange-50 p-3 text-sm text-orange-900">
+            <b>Habits widget:</b> add a second Scriptable widget with the same script and type <b>habits</b> in its Parameter box. It lists today's habits with progress; tap it to open Habits and log.
+          </p>
           <button
             onClick={() => navigator.clipboard?.writeText(script).then(() => toast('Script copied'), () => toast('Could not copy. Select the text below instead.'))}
             className="mb-2 flex w-full items-center justify-center gap-2 rounded-xl bg-teal-700 py-2.5 text-sm font-semibold text-white"
