@@ -27,6 +27,7 @@ upkeep task, plan, document, help day off, bug/idea.
 - **Habits**: shared household habits (`hm_habits`, `hm_habit_logs`): a tick a day or a number a day
   (8 glasses), every day / some weekdays / N times a week. One-tap logging on the Habits tab, Today's
   "Habits" block and "+ > Log a habit"; notes per log (workout details, PRs); streaks and a 5-week grid.
+  Order is `sort_order` (drag the grip, `SortableList` in Sortable.tsx); ticking never moves a row.
   Reminder hours per habit go out with the hourly push cron (`hm_push_habits`), only if not done yet.
 - **To-do**: tasks with an optional due date (`hm_todos`). Open ones due within a week (or overdue) show in Today's "To do" list; due dates show as markers in the Plans calendar (day sheet ticks them off).
 - **Settings** (gear on Today): grouped Your home / Tabs / Today screen (show, hide, reorder blocks; stored in household settings: `disabledModules`, `todayOrder`, `todayHidden`) / Food & meals / Family / App

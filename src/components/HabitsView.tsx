@@ -1,10 +1,13 @@
 import { Bell, Check, ChevronRight, Flame, NotebookPen, Plus, Trash2 } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
 import { addDays, friendlyDate, localDate, WEEKDAYS_SHORT } from '../lib/dates';
 import {
   dayAmount,
   doneRate,
   habitsOn,
+  moveHabit,
+  nextSortOrder,
+  orderHabits,
   habitSummary,
   HABIT_IDEAS,
   hourLabel,
@@ -25,6 +28,7 @@ import { uid } from '../lib/id';
 import { useStore } from '../store/store';
 import type { Habit, HabitLog } from '../types';
 import { useToast } from './toast';
+import { SortableList } from './Sortable';
 import { ConfirmButton, Field, inputCls, PrimaryButton, Segmented, Sheet, Toggle } from './ui';
 
 // ---------- quick logging (shared by the Habits tab, Today and the + button) ----------
@@ -58,7 +62,7 @@ export function HabitIcon({ h, done }: { h: Habit; done?: boolean }) {
 }
 
 // One habit with its one-tap button. Tapping the name opens the details.
-export function HabitRow({ item, date, onOpen, onNote }: { item: HabitToday; date: string; onOpen: () => void; onNote?: () => void }) {
+export function HabitRow({ item, date, onOpen, onNote, grip }: { item: HabitToday; date: string; onOpen: () => void; onNote?: () => void; grip?: ReactNode }) {
   const store = useStore();
   const tap = useHabitTap();
   const { habit: h, amount, done } = item;
@@ -66,6 +70,7 @@ export function HabitRow({ item, date, onOpen, onNote }: { item: HabitToday; dat
   const pct = Math.min(1, amount / (h.target || 1));
   return (
     <div className="flex items-center gap-3 px-3 py-2.5">
+      {grip}
       <button onClick={onOpen} className="flex min-w-0 flex-1 items-center gap-3 text-left">
         <HabitIcon h={h} done={done} />
         <span className="min-w-0 flex-1">
@@ -121,11 +126,13 @@ export function HabitsCard({ onGo }: { onGo: () => void }) {
         <span className="text-xs text-stone-400">{left ? `${left} to go` : 'All done today'}</span>
         <ChevronRight size={16} className="ml-auto text-stone-400" />
       </button>
-      <div className="divide-y divide-stone-100 overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
-        {items.map((it) => (
-          <HabitRow key={it.habit.id} item={it} date={today} onOpen={() => setOpen(it.habit)} onNote={() => setNoting(it.habit)} />
-        ))}
-      </div>
+      <SortableList
+        className="divide-y divide-stone-100 rounded-2xl bg-white ring-1 ring-stone-200"
+        items={items}
+        keyOf={(it) => it.habit.id}
+        onMove={(from, to) => store.saveHabits(moveHabit(store.data.habits, items.map((i) => i.habit.id), items[from].habit.id, to))}
+        render={(it, grip) => <HabitRow item={it} date={today} grip={grip} onOpen={() => setOpen(it.habit)} onNote={() => setNoting(it.habit)} />}
+      />
       {open && <HabitDetailSheet habit={open} onClose={() => setOpen(null)} />}
       {noting && <HabitLogSheet habit={noting} date={today} onClose={() => setNoting(null)} />}
     </section>
@@ -143,8 +150,8 @@ export function HabitsView() {
   const [noting, setNoting] = useState<Habit | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const todays = useMemo(() => habitsOn(habits, habitLogs, today), [habits, habitLogs, today]);
-  const others = habits.filter((h) => !h.archived && !todays.some((t) => t.habit.id === h.id));
-  const archived = habits.filter((h) => h.archived);
+  const others = orderHabits(habits).filter((h) => !h.archived && !todays.some((t) => t.habit.id === h.id));
+  const archived = orderHabits(habits).filter((h) => h.archived);
   const fresh = (id: string) => store.data.habits.find((h) => h.id === id) ?? null;
 
   return (
@@ -165,31 +172,40 @@ export function HabitsView() {
       {todays.length > 0 && (
         <section>
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Today</h2>
-          <div className="divide-y divide-stone-100 overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
-            {todays.map((it) => (
-              <HabitRow key={it.habit.id} item={it} date={today} onOpen={() => setOpen(it.habit)} onNote={() => setNoting(it.habit)} />
-            ))}
-          </div>
+          <SortableList
+            className="divide-y divide-stone-100 rounded-2xl bg-white ring-1 ring-stone-200"
+            items={todays}
+            keyOf={(it) => it.habit.id}
+            onMove={(from, to) => store.saveHabits(moveHabit(habits, todays.map((i) => i.habit.id), todays[from].habit.id, to))}
+            render={(it, grip) => <HabitRow item={it} date={today} grip={grip} onOpen={() => setOpen(it.habit)} onNote={() => setNoting(it.habit)} />}
+          />
         </section>
       )}
 
       {others.length > 0 && (
         <section>
           <h2 className="mb-2 text-sm font-semibold uppercase tracking-wide text-stone-500">Not today</h2>
-          <div className="divide-y divide-stone-100 overflow-hidden rounded-2xl bg-white ring-1 ring-stone-200">
-            {others.map((h) => (
-              <button key={h.id} onClick={() => setOpen(h)} className="flex w-full items-center gap-3 px-3 py-2.5 text-left">
-                <HabitIcon h={h} />
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium text-stone-900">{h.name}</span>
-                  <span className="block truncate text-xs text-stone-500">
-                    {h.schedule === 'weekly' ? `Week goal met (${weekDoneDays(h, habitLogs, today)} of ${h.perWeek})` : scheduleLabel(h)}
+          <SortableList
+            className="divide-y divide-stone-100 rounded-2xl bg-white ring-1 ring-stone-200"
+            items={others}
+            keyOf={(h) => h.id}
+            onMove={(from, to) => store.saveHabits(moveHabit(habits, others.map((h) => h.id), others[from].id, to))}
+            render={(h, grip) => (
+              <div className="flex items-center gap-3 px-3 py-2.5">
+                {grip}
+                <button onClick={() => setOpen(h)} className="flex min-w-0 flex-1 items-center gap-3 text-left">
+                  <HabitIcon h={h} />
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-medium text-stone-900">{h.name}</span>
+                    <span className="block truncate text-xs text-stone-500">
+                      {h.schedule === 'weekly' ? `Week goal met (${weekDoneDays(h, habitLogs, today)} of ${h.perWeek})` : scheduleLabel(h)}
+                    </span>
                   </span>
-                </span>
-                <ChevronRight size={16} className="text-stone-400" />
-              </button>
-            ))}
-          </div>
+                  <ChevronRight size={16} className="text-stone-400" />
+                </button>
+              </div>
+            )}
+          />
         </section>
       )}
 
@@ -413,7 +429,7 @@ export function HabitSheet({ habit, onClose }: { habit: Habit | null; onClose: (
   const valid = draft.name.trim() && (draft.kind === 'check' || draft.target > 0) && (draft.schedule !== 'days' || draft.days.length > 0);
   const save = () => {
     if (!valid) return;
-    store.saveHabit({ ...draft, name: draft.name.trim(), emoji: draft.emoji.trim(), unit: draft.unit.trim(), target: draft.kind === 'check' ? 1 : draft.target, step: draft.kind === 'check' ? 1 : draft.step || 1 });
+    store.saveHabit({ ...draft, sortOrder: habit ? draft.sortOrder : nextSortOrder(store.data.habits), name: draft.name.trim(), emoji: draft.emoji.trim(), unit: draft.unit.trim(), target: draft.kind === 'check' ? 1 : draft.target, step: draft.kind === 'check' ? 1 : draft.step || 1 });
     onClose();
   };
   const toggle = <T,>(list: T[], v: T) => (list.includes(v) ? list.filter((x) => x !== v) : [...list, v]);
@@ -570,7 +586,7 @@ export function QuickHabitSheet({ onClose }: { onClose: () => void }) {
   const store = useStore();
   const today = localDate();
   const items = habitsOn(store.data.habits, store.data.habitLogs, today);
-  const rest = store.data.habits.filter((h) => !h.archived && !items.some((i) => i.habit.id === h.id)).map((h) => ({ habit: h, amount: dayAmount(store.data.habitLogs, h.id, today), done: false }));
+  const rest = orderHabits(store.data.habits).filter((h) => !h.archived && !items.some((i) => i.habit.id === h.id)).map((h) => ({ habit: h, amount: dayAmount(store.data.habitLogs, h.id, today), done: false }));
   const [noting, setNoting] = useState<Habit | null>(null);
   const [adding, setAdding] = useState(false);
   if (noting) return <HabitLogSheet habit={noting} date={today} onClose={onClose} />;

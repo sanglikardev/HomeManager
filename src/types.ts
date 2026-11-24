@@ -376,6 +376,7 @@ export interface Habit {
   reminderHours: number[]; // local hours (0-23) for a phone nudge
   archived: boolean;
   notes: string;
+  sortOrder: number; // position the owner dragged it to (lower first)
   createdAt: string;
 }
 

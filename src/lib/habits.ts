@@ -43,15 +43,40 @@ export interface HabitToday {
   done: boolean;
 }
 
-// Today's habits, not done first, in the order they were made.
+// The owner's order: dragged position first, then when they were made.
+export function orderHabits(habits: Habit[]): Habit[] {
+  return [...habits].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0) || a.createdAt.localeCompare(b.createdAt));
+}
+
+// Today's habits in the owner's order. Ticking one does not move it.
 export function habitsOn(habits: Habit[], logs: HabitLog[], date: string): HabitToday[] {
-  return habits
+  return orderHabits(habits)
     .filter((h) => dueOn(h, logs, date))
     .map((h) => {
       const amount = dayAmount(logs, h.id, date);
       return { habit: h, amount, done: amount >= h.target };
-    })
-    .sort((a, b) => Number(a.done) - Number(b.done) || a.habit.createdAt.localeCompare(b.habit.createdAt));
+    });
+}
+
+// Drag `id` to position `to` within a shown list (e.g. only today's habits). The other
+// habits keep their places. Returns the habits whose position changed, numbered 0..n-1.
+export function moveHabit(habits: Habit[], shownIds: string[], id: string, to: number): Habit[] {
+  const all = orderHabits(habits);
+  const shown = shownIds.filter((x) => x !== id);
+  shown.splice(Math.max(0, Math.min(to, shown.length)), 0, id);
+  const set = new Set(shownIds);
+  let k = 0;
+  const ids = all.map((h) => (set.has(h.id) ? shown[k++] : h.id));
+  const byId = new Map(all.map((h) => [h.id, h]));
+  return ids.flatMap((hid, i) => {
+    const h = byId.get(hid)!;
+    return h.sortOrder === i ? [] : [{ ...h, sortOrder: i }];
+  });
+}
+
+// A new habit goes to the end.
+export function nextSortOrder(habits: Habit[]): number {
+  return habits.reduce((m, h) => Math.max(m, (h.sortOrder ?? 0) + 1), 0);
 }
 
 export interface Streak {
@@ -170,6 +195,7 @@ export function newHabit(id: string, now: Date, patch: Partial<Habit> = {}): Hab
     reminderHours: [],
     archived: false,
     notes: '',
+    sortOrder: 0,
     createdAt: now.toISOString(),
     ...patch,
   };

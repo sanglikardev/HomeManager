@@ -6,6 +6,9 @@ import {
   doneRate,
   dueOn,
   habitsOn,
+  moveHabit,
+  nextSortOrder,
+  orderHabits,
   habitSummary,
   newHabit,
   notedLogs,
@@ -59,14 +62,27 @@ describe('habits', () => {
     expect(dueOn(gym, [log('g', '2026-11-23'), log('g', today)], today)).toBe(true);
   });
 
-  it('lists today with open ones first', () => {
+  it('lists today in the saved order and does not move ticked ones', () => {
     const a = h({ id: 'a', createdAt: '2026-10-01' });
     const b = h({ id: 'b', createdAt: '2026-10-02' });
-    const list = habitsOn([a, b], [log('a', today)], today);
-    expect(list.map((x) => [x.habit.id, x.done])).toEqual([
-      ['b', false],
+    expect(habitsOn([b, a], [log('a', today)], today).map((x) => [x.habit.id, x.done])).toEqual([
       ['a', true],
+      ['b', false],
     ]);
+    const c = h({ id: 'c', createdAt: '2026-10-03', sortOrder: -1 });
+    expect(habitsOn([a, b, c], [], today).map((x) => x.habit.id)).toEqual(['c', 'a', 'b']);
+  });
+
+  it('moves a habit by dragging, keeping hidden ones in place', () => {
+    const list = ['a', 'b', 'c', 'd'].map((id, i) => h({ id, createdAt: `2026-10-0${i + 1}` }));
+    const apply = (changed: Habit[], base = list) => orderHabits(base.map((x) => changed.find((c) => c.id === x.id) ?? x)).map((x) => x.id);
+    expect(apply(moveHabit(list, ['a', 'b', 'c', 'd'], 'd', 0))).toEqual(['d', 'a', 'b', 'c']);
+    expect(apply(moveHabit(list, ['a', 'b', 'c', 'd'], 'a', 2))).toEqual(['b', 'c', 'a', 'd']);
+    // Only a, c and d are shown today: b keeps its slot.
+    expect(apply(moveHabit(list, ['a', 'c', 'd'], 'd', 0))).toEqual(['d', 'b', 'a', 'c']);
+    expect(moveHabit(list, ['a', 'b'], 'a', 0).map((x) => x.sortOrder)).toEqual([1, 2, 3]); // a is 0 already
+    expect(nextSortOrder(list)).toBe(1);
+    expect(nextSortOrder([])).toBe(0);
   });
 
   it('counts a daily streak, without breaking it before today is done', () => {

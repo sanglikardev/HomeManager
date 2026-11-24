@@ -122,6 +122,7 @@ export interface Store {
   saveTodo(todo: Todo): void;
   deleteTodo(id: string): void;
   saveHabit(habit: Habit): void;
+  saveHabits(habits: Habit[]): void;
   deleteHabit(id: string): void;
   saveHabitLogs(logs: HabitLog[]): void;
   deleteHabitLogs(ids: string[]): void;
@@ -400,6 +401,7 @@ export function StoreProvider({ backend, initial, children }: { backend: Backend
       saveTodo: (todo) => commit(() => ({ todos: [todo] }), false),
       deleteTodo: (id) => commit(() => ({ removed: { todos: [id] } }), false),
       saveHabit: (habit) => commit(() => ({ habits: [habit] }), false),
+      saveHabits: (habits) => commit(() => ({ habits }), false),
       // The database drops a habit's logs with it; drop them here too.
       deleteHabit: (id) => commit((d) => ({ removed: { habits: [id], habitLogs: d.habitLogs.filter((l) => l.habitId === id).map((l) => l.id) } }), false),
       saveHabitLogs: (logs) => commit(() => ({ habitLogs: logs }), false),
