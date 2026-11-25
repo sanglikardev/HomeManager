@@ -1,6 +1,6 @@
 import { ArrowLeft, Bell, Brain, Check, Copy, Lightbulb, Mic, Send, Settings, Sparkles, Trash2, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DEFAULT_HOMIE, friendlyWhen, localToUtc, sortItems, WEEKDAYS, type HomieAction, type HomieChatLine, type HomieItem, type HomieSettings } from '../lib/homie';
+import { cleanInterests, DEFAULT_HOMIE, friendlyWhen, localToUtc, sortItems, WEEKDAYS, type HomieAction, type HomieChatLine, type HomieItem, type HomieSettings } from '../lib/homie';
 import { askHomie, clearHomieChat, loadHomie, makeSiriKey, saveHomieItem, saveHomieSettings, type HomieData } from '../store/homie';
 import { useStore } from '../store/store';
 import { useToast } from './toast';
@@ -373,6 +373,7 @@ const MCP_URL = `${location.origin}/mcp/`;
 function SettingsSheet({ data, ai, onSaved, onCleared, onClose }: { data: HomieData; ai: boolean; onSaved: (s: HomieSettings) => void; onCleared: () => void; onClose: () => void }) {
   const toast = useToast();
   const [s, setS] = useState<HomieSettings>(data.settings);
+  const [interests, setInterests] = useState((data.settings.interests ?? []).join('\n'));
   const [key, setKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const set = <K extends keyof HomieSettings>(k: K, v: HomieSettings[K]) => setS((x) => ({ ...x, [k]: v }));
@@ -385,8 +386,9 @@ function SettingsSheet({ data, ai, onSaved, onCleared, onClose }: { data: HomieD
   const save = async () => {
     setSaving(true);
     try {
-      await saveHomieSettings(s);
-      onSaved(s);
+      const next = { ...s, interests: cleanInterests(interests.split('\n')) };
+      await saveHomieSettings(next);
+      onSaved(next);
       toast('Saved');
       onClose();
     } catch (e) {
@@ -435,9 +437,14 @@ function SettingsSheet({ data, ai, onSaved, onCleared, onClose }: { data: HomieD
       </Field>
       <Toggle on={s.morningBrief} onChange={(v) => set('morningBrief', v)} label="Morning brief at wake-up time" />
       <Toggle on={s.eveningBrief} onChange={(v) => set('eveningBrief', v)} label="Evening wrap-up" />
-      <p className="mb-4 text-xs text-stone-500">Briefs and reminders arrive as phone notifications. Turn notifications on in Settings, App.</p>
+      <Toggle on={s.nudges} onChange={(v) => set('nudges', v)} label="Nudges: time to leave, streak saver, bedtime" />
+      <p className="mb-4 text-xs text-stone-500">Briefs, nudges and reminders arrive as phone notifications. Turn notifications on in Settings, App.</p>
       <Field label={`What should ${s.name} always keep in mind?`} hint="Your goals, health, what you enjoy. For example: gym 4 days a week, knee rehab, ski trip in Jan 2028.">
         <textarea rows={5} className={inputCls} value={s.about} maxLength={4000} onChange={(e) => set('about', e.target.value)} />
+      </Field>
+
+      <Field label="Interests to watch" hint="One per line. A daily scout in your Claude app looks these up (shows near you, big news) and notifies you about new finds. Only you see them.">
+        <textarea rows={4} className={inputCls} value={interests} placeholder={'Samay Raina shows\nPure Storage (PSTG) stock\nBig Indian market news'} onChange={(e) => setInterests(e.target.value)} />
       </Field>
 
       <ConnectClaude hasKey={data.hasSiri} />

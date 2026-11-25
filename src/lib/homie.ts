@@ -16,6 +16,8 @@ export interface HomieSettings {
   morningBrief: boolean;
   eveningBrief: boolean;
   about: string; // anything Homie should always keep in mind (goals, health, likes)
+  interests: string[]; // what the daily scout watches: comedians, stocks, bands, topics
+  nudges: boolean; // leave-now, streak saver and bedtime nudges
   tzOffsetMin: number; // minutes east of UTC (India = 330)
 }
 
@@ -31,6 +33,8 @@ export const DEFAULT_HOMIE: HomieSettings = {
   morningBrief: true,
   eveningBrief: true,
   about: '',
+  interests: [],
+  nudges: true,
   tzOffsetMin: 330,
 };
 
@@ -114,7 +118,8 @@ export function cleanSettingsPatch(patch: Record<string, unknown>): Partial<Homi
   if (Array.isArray(patch.officeDays) && patch.officeDays.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)) {
     out.officeDays = [...new Set(patch.officeDays as number[])].sort();
   }
-  for (const k of ['morningBrief', 'eveningBrief'] as const) if (typeof patch[k] === 'boolean') out[k] = patch[k];
+  for (const k of ['morningBrief', 'eveningBrief', 'nudges'] as const) if (typeof patch[k] === 'boolean') out[k] = patch[k];
+  if (Array.isArray(patch.interests)) out.interests = cleanInterests(patch.interests);
   if (typeof patch.about === 'string') out.about = patch.about.slice(0, 4000);
   return out;
 }
@@ -203,4 +208,48 @@ export function buildBrief(ctx: BriefContext, kind: 'morning' | 'evening'): stri
     parts.push(`Bed by ${clock(minutes(s.wake) - 450)} to wake at ${s.wake}. ${PUSH[s.tone].evening}`);
   }
   return parts.join(' ');
+}
+
+export function cleanInterests(list: unknown[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const x of list) {
+    if (typeof x !== 'string') continue;
+    const v = x.trim().slice(0, 80);
+    if (v && !seen.has(v.toLowerCase())) {
+      seen.add(v.toLowerCase());
+      out.push(v);
+    }
+  }
+  return out.slice(0, 40);
+}
+
+// ---------- nudges (always rule-based) ----------
+
+const SAVER: Record<HomieTone, (open: string, missed: number) => string> = {
+  gentle: (open, missed) => `${open} still open today.${missed >= 3 ? ` It's been a few days, a short one counts.` : ''} Even 15 minutes keeps the streak alive.`,
+  firm: (open, missed) => `${open} still not done.${missed >= 3 ? ` ${missed} misses this week. That stops tonight.` : ''} 20 minutes, start now.`,
+  drill: (open, missed) => `${open}. Not done. ${missed >= 3 ? `${missed} misses this week. Unacceptable. ` : ''}Get up and do it. Now.`,
+};
+
+// Leave-now, streak saver and bedtime nudges. Null when there is nothing worth saying.
+export function buildNudge(ctx: BriefContext, kind: 'leave' | 'saver' | 'bed'): string | null {
+  const s = homieSettings(ctx.settings);
+  const today = ctx.now.slice(0, 10);
+  if (kind === 'leave') {
+    const busy = ctx.items.filter((i) => i.kind === 'busy' && i.day === today).map((i) => i.text);
+    const tail = s.tone === 'gentle' ? 'Ride safe.' : s.tone === 'drill' ? 'Helmet on. Move.' : 'Out the door. Ride safe.';
+    return `Time to leave: about ${s.commuteMin} min to office.${busy.length ? ` Busy day: ${busy[0]}.` : ''} ${tail}`;
+  }
+  if (kind === 'saver') {
+    const open = habitsDue(ctx, today).filter((h) => h.today < h.target);
+    if (!open.length) return null;
+    // Missed days this week for the most-skipped open habit.
+    const missed = Math.max(...open.map((h) => Math.max(0, (h.schedule === 'weekly' ? (h.perWeek ?? 1) : h.schedule === 'days' ? (h.days ?? []).length : 7) - h.daysDoneLast7)));
+    return SAVER[s.tone](list(open.map((h) => h.name)), missed);
+  }
+  const bed = clock(minutes(s.wake) - 450);
+  const office = s.officeDays.includes(weekday(addDay(today, 1)));
+  const tail = s.tone === 'gentle' ? 'Sleep well.' : s.tone === 'drill' ? 'Screens off. Now.' : 'Phone down.';
+  return `Bed by ${bed} to be up at ${s.wake}.${office ? ` Office tomorrow, leave by ${s.leave}.` : ''} ${tail}`;
 }

@@ -6,7 +6,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { BetaMessageParam, BetaTextBlockParam, BetaToolUnion, BetaContentBlock, BetaToolResultBlockParam } from '@anthropic-ai/sdk/resources/beta/messages/messages';
 import { DEFAULT_EXPENSE_CATEGORIES } from '../src/types';
-import { buildBrief, cleanSettingsPatch, friendlyWhen, homieSettings, isDate, localToday, localToUtc, type BriefContext, type HomieAction, type HomieChatLine, type HomieSettings } from '../src/lib/homie';
+import { buildBrief, cleanInterests, cleanSettingsPatch, friendlyWhen, homieSettings, isDate, localToday, localToUtc, type BriefContext, type HomieAction, type HomieChatLine, type HomieSettings } from '../src/lib/homie';
 
 export const DEFAULT_MODEL = 'claude-opus-5-5';
 const MAX_ROUNDS = 6;
@@ -156,6 +156,85 @@ export const TOOLS: BetaToolUnion[] = [
       additionalProperties: false,
     },
   },
+  {
+    name: 'lookup',
+    description:
+      'Read more of their data. plans: trips and events with checklists (ids for add_plan_tasks / tick_plan_tasks). todos: household to-dos with ids. upkeep, bills, documents (titles and expiry). habit_logs: what was logged when, with notes (workouts, PRs). expenses: their own spending with totals by category. my_history: everything they asked you to keep, including done reminders and scout finds. from/to are YYYY-MM-DD or null; search filters by name or text.',
+    strict: true,
+    input_schema: {
+      type: 'object',
+      properties: {
+        what: { type: 'string', enum: ['plans', 'todos', 'upkeep', 'bills', 'documents', 'habit_logs', 'expenses', 'my_history'] },
+        from: nstr,
+        to: nstr,
+        search: nstr,
+      },
+      required: ['what', 'from', 'to', 'search'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'add_plan',
+    description: 'Add a trip, event or plan to the shared calendar, with an optional checklist (packing, bookings, to-dos).',
+    strict: true,
+    input_schema: {
+      type: 'object',
+      properties: {
+        title: str,
+        kind: { type: 'string', enum: ['trip', 'event', 'holiday', 'other'] },
+        start_date: { type: 'string', description: 'YYYY-MM-DD' },
+        end_date: { type: ['string', 'null'], description: 'YYYY-MM-DD, null for one day' },
+        destination: str,
+        international: { type: 'boolean' },
+        time: { type: ['string', 'null'], description: 'HH:MM or null' },
+        notes: str,
+        tasks: { type: 'array', items: { type: 'object', properties: { text: str, due: nstr }, required: ['text', 'due'], additionalProperties: false } },
+      },
+      required: ['title', 'kind', 'start_date', 'end_date', 'destination', 'international', 'time', 'notes', 'tasks'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'add_plan_tasks',
+    description: "Add checklist items to an existing plan (plan id from lookup 'plans').",
+    strict: true,
+    input_schema: {
+      type: 'object',
+      properties: { plan_id: str, tasks: { type: 'array', items: { type: 'object', properties: { text: str, due: nstr }, required: ['text', 'due'], additionalProperties: false } } },
+      required: ['plan_id', 'tasks'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'tick_plan_tasks',
+    description: "Tick off checklist items of a plan (ids from lookup 'plans').",
+    strict: true,
+    input_schema: { type: 'object', properties: { plan_id: str, task_ids: { type: 'array', items: str } }, required: ['plan_id', 'task_ids'], additionalProperties: false },
+  },
+  {
+    name: 'complete_todo',
+    description: "Mark a household to-do done (id from lookup 'todos').",
+    strict: true,
+    input_schema: { type: 'object', properties: { id: str }, required: ['id'], additionalProperties: false },
+  },
+  {
+    name: 'update_interests',
+    description: 'Change what the daily scout watches for them (comedians, artists, stocks, topics, places).',
+    strict: true,
+    input_schema: { type: 'object', properties: { add: { type: 'array', items: str }, remove: { type: 'array', items: str } }, required: ['add', 'remove'], additionalProperties: false },
+  },
+  {
+    name: 'save_find',
+    description: 'Save something worth their attention that you found (a show, news, a deal) so they can see it later and it is not repeated.',
+    strict: true,
+    input_schema: { type: 'object', properties: { title: str, detail: str, url: nstr }, required: ['title', 'detail', 'url'], additionalProperties: false },
+  },
+  {
+    name: 'notify',
+    description: 'Send a notification to their phone now. Only for things worth interrupting them for; at most 6 a day.',
+    strict: true,
+    input_schema: { type: 'object', properties: { title: str, body: str }, required: ['title', 'body'], additionalProperties: false },
+  },
 ];
 
 const uuid = () => crypto.randomUUID();
@@ -169,7 +248,17 @@ interface ToolOut {
 }
 
 // Runs one tool call. Bad input comes back as an error result Claude can correct.
-export async function runTool(name: string, input: Record<string, unknown>, ctx: HomieContext, token: string, rpc: Rpc): Promise<ToolOut> {
+export type Notify = (title: string, body: string) => Promise<string>;
+
+type Row = Record<string, unknown> & { id: string };
+const taskRows = (v: unknown) =>
+  (Array.isArray(v) ? v : [])
+    .map((t) => (t && typeof t === 'object' ? (t as Record<string, unknown>) : {}))
+    .map((t) => ({ id: uuid(), text: clip(t.text, 200), due: isDate(t.due) ? t.due : null, done: false }))
+    .filter((t) => t.text)
+    .slice(0, 60);
+
+export async function runTool(name: string, input: Record<string, unknown>, ctx: HomieContext, token: string, rpc: Rpc, notify?: Notify): Promise<ToolOut> {
   const s = homieSettings(ctx.settings);
   const today = localToday(s.tzOffsetMin);
   const nowIso = new Date().toISOString();
@@ -249,6 +338,87 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
       ctx.settings = next;
       return { result: 'saved', action: { kind: 'settings', label: `Settings: ${Object.entries(patch).map(([k, v]) => `${k} ${Array.isArray(v) ? v.join(',') : v}`).join(', ')}` } };
     }
+    case 'lookup': {
+      const what = String(input.what);
+      const out = await rpc('hm_homie_lookup', {
+        p_token: token,
+        p_what: what,
+        p_from: isDate(input.from) ? input.from : null,
+        p_to: isDate(input.to) ? input.to : null,
+        p_search: typeof input.search === 'string' ? input.search.slice(0, 80) : null,
+      });
+      return { result: JSON.stringify(out) };
+    }
+    case 'add_plan': {
+      const title = clip(input.title, 200);
+      if (!title) return fail('title is empty');
+      if (!isDate(input.start_date)) return fail('start_date must be YYYY-MM-DD');
+      const end = input.end_date == null ? input.start_date : isDate(input.end_date) && input.end_date >= input.start_date ? input.end_date : null;
+      if (!end) return fail('end_date must be YYYY-MM-DD on or after start_date, or null');
+      const kind = ['trip', 'event', 'holiday', 'other'].includes(input.kind as string) ? input.kind : 'other';
+      const time = typeof input.time === 'string' && /^([01]\d|2[0-3]):[0-5]\d$/.test(input.time) ? input.time : '';
+      const checklist = taskRows(input.tasks);
+      await rpc('hm_upsert', {
+        p_token: token,
+        p_table: 'hm_plans',
+        p_rows: [{ id: uuid(), title, kind, destination: clip(input.destination, 120), international: input.international === true, start_date: input.start_date, end_date: end, time, checklist, notes: clip(input.notes, 4000), created_at: nowIso }],
+      });
+      return { result: 'added', action: { kind: 'todo', label: `Plan: ${title} (${input.start_date}${end !== input.start_date ? ` to ${end}` : ''})${checklist.length ? `, ${checklist.length} checklist items` : ''}` } };
+    }
+    case 'add_plan_tasks':
+    case 'tick_plan_tasks': {
+      const plans = (await rpc('hm_homie_lookup', { p_token: token, p_what: 'plans', p_from: '1900-01-01', p_to: null, p_search: null })) as Row[];
+      const plan = plans.find((p) => p.id === input.plan_id);
+      if (!plan) return fail("no plan with that id; use lookup 'plans'");
+      const list = (Array.isArray(plan.checklist) ? plan.checklist : []) as { id: string; text: string; due: string | null; done: boolean }[];
+      let checklist = list;
+      let label: string;
+      if (name === 'add_plan_tasks') {
+        const add = taskRows(input.tasks);
+        if (!add.length) return fail('no tasks');
+        checklist = [...list, ...add];
+        label = `${plan.title}: added ${add.map((t) => t.text).join(', ')}`;
+      } else {
+        const ids = new Set(Array.isArray(input.task_ids) ? (input.task_ids as string[]) : []);
+        const hit = list.filter((t) => ids.has(t.id));
+        if (!hit.length) return fail('none of those task ids are on this plan');
+        checklist = list.map((t) => (ids.has(t.id) ? { ...t, done: true } : t));
+        label = `${plan.title}: ticked ${hit.map((t) => t.text).join(', ')}`;
+      }
+      await rpc('hm_upsert', { p_token: token, p_table: 'hm_plans', p_rows: [{ ...plan, checklist }] });
+      return { result: 'saved', action: { kind: 'todo', label } };
+    }
+    case 'complete_todo': {
+      const todos = (await rpc('hm_homie_lookup', { p_token: token, p_what: 'todos', p_from: null, p_to: null, p_search: null })) as Row[];
+      const todo = todos.find((t) => t.id === input.id);
+      if (!todo) return fail("no to-do with that id; use lookup 'todos'");
+      await rpc('hm_upsert', { p_token: token, p_table: 'hm_todos', p_rows: [{ ...todo, done: true, done_on: today }] });
+      return { result: 'done', action: { kind: 'todo', label: `Done: ${todo.title}` } };
+    }
+    case 'update_interests': {
+      const add = Array.isArray(input.add) ? input.add : [];
+      const remove = new Set((Array.isArray(input.remove) ? input.remove : []).map((x) => String(x).trim().toLowerCase()));
+      const interests = cleanInterests([...s.interests.filter((i) => !remove.has(i.toLowerCase())), ...add]);
+      const next = { ...s, interests };
+      await rpc('hm_homie_save_settings', { p_token: token, p_settings: next });
+      ctx.settings = next;
+      return { result: `interests now: ${interests.join(', ') || 'none'}`, action: { kind: 'settings', label: `Interests: ${interests.join(', ') || 'none'}` } };
+    }
+    case 'save_find': {
+      const title = clip(input.title, 150);
+      if (!title) return fail('title is empty');
+      const url = typeof input.url === 'string' && /^https?:\/\//.test(input.url) ? input.url.slice(0, 400) : '';
+      const text = `Scout: ${title}. ${clip(input.detail, 800)}${url ? ` ${url}` : ''}`;
+      const row = await saveItem({ kind: 'note', text });
+      return { result: `saved, id ${row.id}`, action: { kind: 'note', label: `Saved find: ${title}`, itemId: row.id } };
+    }
+    case 'notify': {
+      if (!notify) return fail('notifications are not available here');
+      const title = clip(input.title, 80);
+      const body = clip(input.body, 300);
+      if (!title || !body) return fail('title and body are needed');
+      return { result: await notify(title, body) };
+    }
     default:
       return fail(`unknown tool ${name}`);
   }
@@ -283,7 +453,7 @@ export interface TurnResult {
   actions: HomieAction[];
 }
 
-export async function homieTurn(opts: { apiKey: string; model?: string; token: string; text: string; ctx: HomieContext; rpc: Rpc }): Promise<TurnResult> {
+export async function homieTurn(opts: { apiKey: string; model?: string; token: string; text: string; ctx: HomieContext; rpc: Rpc; notify?: Notify }): Promise<TurnResult> {
   const { ctx, token, rpc } = opts;
   const api = client(opts.apiKey);
   const system: BetaTextBlockParam[] = [
@@ -319,7 +489,7 @@ export async function homieTurn(opts: { apiKey: string; model?: string; token: s
       if (block.type !== 'tool_use') continue;
       let out: ToolOut;
       try {
-        out = await runTool(block.name, (block.input ?? {}) as Record<string, unknown>, ctx, token, rpc);
+        out = await runTool(block.name, (block.input ?? {}) as Record<string, unknown>, ctx, token, rpc, opts.notify);
       } catch (e) {
         out = { result: `failed: ${e instanceof Error ? e.message : String(e)}`, error: true };
       }

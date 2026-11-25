@@ -8,7 +8,8 @@
 import { WIDGET_BODY } from '../src/lib/widget';
 import { parseBankSms, smsHash } from '../src/lib/sms';
 import { sendPush, type PushTarget } from './push';
-import { homieTurn, writeBrief, type HomieContext } from './homie';
+import { homieTurn, writeBrief, type HomieContext, type Notify } from './homie';
+import { buildNudge, type BriefContext } from '../src/lib/homie';
 import { mcpHttp } from './mcp';
 
 interface Env {
@@ -87,10 +88,26 @@ async function rpc(env: Env, fn: string, args: Record<string, unknown>) {
 
 const signedOut = (e: unknown) => e instanceof Error && /sign in again/i.test(e.message);
 
+// Push to the token owner's own phones only (Claude's notify tool, the scout). Capped per day in the database.
+const notifier = (env: Env, token: string): Notify => async (title, body) => {
+  if (!env.PUSH_SECRET) return 'notifications are not set up';
+  const t = (await rpc(env, 'hm_homie_notify_targets', { p_secret: env.PUSH_SECRET, p_token: token })) as unknown as {
+    ok: boolean; reason?: string; vapid?: JsonWebKey | null; subs?: (PushTarget & { id: string })[];
+  };
+  if (!t.ok) return 'daily notification limit reached (6)';
+  const subs = t.subs ?? [];
+  if (!subs.length) return 'no phone has notifications on';
+  const r = await deliver(env, {
+    vapid: t.vapid ?? null,
+    items: subs.map((s) => ({ ...s, title: title.slice(0, 80), body: body.slice(0, 400), url: '/#homie', tag: `homie-notify-${Date.now()}` })),
+  });
+  return r.sent ? `sent to ${r.sent} device(s)` : 'sending failed';
+};
+
 async function homieReply(env: Env, token: string, text: string) {
   const ctx = (await rpc(env, 'hm_homie_context', { p_token: token })) as unknown as HomieContext;
   await rpc(env, 'hm_homie_chat_add', { p_token: token, p_role: 'user', p_text: text });
-  const out = await homieTurn({ apiKey: env.ANTHROPIC_API_KEY!, model: env.HOMIE_MODEL, token, text, ctx, rpc: (fn, args) => rpc(env, fn, args) });
+  const out = await homieTurn({ apiKey: env.ANTHROPIC_API_KEY!, model: env.HOMIE_MODEL, token, text, ctx, rpc: (fn, args) => rpc(env, fn, args), notify: notifier(env, token) });
   const saved = out.actions.length ? `${out.reply}\n\n${out.actions.map((a) => `• ${a.label}`).join('\n')}` : out.reply;
   await rpc(env, 'hm_homie_chat_add', { p_token: token, p_role: 'assistant', p_text: saved });
   return out;
@@ -138,10 +155,12 @@ async function homieSiri(req: Request, env: Env, url: URL): Promise<Response> {
 interface HomieDue {
   vapid: JsonWebKey | null;
   reminders: { id: string; text: string; subs: (PushTarget & { id: string })[] }[];
-  briefs: { account: string; kind: 'morning' | 'evening'; subs: (PushTarget & { id: string })[]; context: HomieContext }[];
+  briefs: { account: string; kind: 'morning' | 'evening' | 'leave' | 'saver' | 'bed'; subs: (PushTarget & { id: string })[]; context: HomieContext }[];
 }
 
-// Every 5 minutes: due reminders, and the morning and evening briefs.
+const NUDGE_TITLE = { leave: 'Time to leave', saver: 'Streak saver', bed: 'Bedtime' } as const;
+
+// Every 5 minutes: due reminders, the morning and evening briefs, and nudges (leave, streak saver, bedtime).
 async function homieCron(env: Env) {
   if (!env.PUSH_SECRET) return;
   const due = (await rpc(env, 'hm_homie_due', { p_secret: env.PUSH_SECRET, p_briefs: true })) as unknown as HomieDue;
@@ -151,11 +170,17 @@ async function homieCron(env: Env) {
   }
   for (const b of due.briefs) {
     try {
-      const text = await writeBrief({ apiKey: env.ANTHROPIC_API_KEY, model: env.HOMIE_MODEL, kind: b.kind, ctx: b.context });
-      if (!text) continue;
-      await rpc(env, 'hm_homie_brief_save', { p_secret: env.PUSH_SECRET, p_account: b.account, p_text: text });
       const name = (b.context.settings?.name as string) || 'Homie';
-      for (const s of b.subs) items.push({ ...s, title: `${name} · ${b.kind === 'morning' ? 'Good morning' : 'Evening wrap-up'}`, body: text, url: '/#homie', tag: `homie-${b.kind}` });
+      if (b.kind === 'morning' || b.kind === 'evening') {
+        const text = await writeBrief({ apiKey: env.ANTHROPIC_API_KEY, model: env.HOMIE_MODEL, kind: b.kind, ctx: b.context });
+        if (!text) continue;
+        await rpc(env, 'hm_homie_brief_save', { p_secret: env.PUSH_SECRET, p_account: b.account, p_text: text });
+        for (const s of b.subs) items.push({ ...s, title: `${name} · ${b.kind === 'morning' ? 'Good morning' : 'Evening wrap-up'}`, body: text, url: '/#homie', tag: `homie-${b.kind}` });
+      } else if (b.kind in NUDGE_TITLE) {
+        const text = buildNudge(b.context as unknown as BriefContext, b.kind);
+        if (!text) continue;
+        for (const s of b.subs) items.push({ ...s, title: `${name} · ${NUDGE_TITLE[b.kind]}`, body: text, url: '/', tag: `homie-${b.kind}` });
+      }
     } catch {
       // one failed brief must not stop the others
     }
@@ -272,7 +297,8 @@ export default {
     if (url.pathname.startsWith('/.well-known/')) return new Response('Not found', { status: 404 });
     // The Claude app connector (remote MCP): /mcp/<personal key>.
     if (url.pathname.startsWith('/mcp/')) {
-      return mcpHttp(req, url.pathname.slice(5).replace(/\/$/, ''), (fn, args) => rpc(env, fn, args));
+      const key = url.pathname.slice(5).replace(/\/$/, '');
+      return mcpHttp(req, key, (fn, args) => rpc(env, fn, args), notifier(env, key));
     }
     if (url.pathname === '/api/homie/status') return json({ ai: !!env.ANTHROPIC_API_KEY });
     if (url.pathname === '/api/homie') {

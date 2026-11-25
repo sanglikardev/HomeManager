@@ -201,3 +201,54 @@ describe('connector (MCP)', () => {
     expect((await mcpHttp(new Request('https://x/mcp'), KEY, async () => null)).status).toBe(405);
   });
 });
+
+import { buildNudge, cleanInterests } from '../homie';
+
+describe('nudges', () => {
+  it('says when to leave, with a busy day', () => {
+    const c = briefCtx();
+    c.items.push({ kind: 'busy', text: 'Demo', at: null, day: '2026-11-25', done: false });
+    expect(buildNudge(c, 'leave')).toBe('Time to leave: about 60 min to office. Busy day: Demo. Out the door. Ride safe.');
+  });
+  it('saves a streak only when something is still open, firmer after misses', () => {
+    expect(buildNudge(briefCtx(), 'saver')).toBe('Workout still not done. 3 misses this week. That stops tonight. 20 minutes, start now.');
+    const done = briefCtx();
+    done.home!.habits = done.home!.habits!.map((h) => ({ ...h, today: h.target }));
+    expect(buildNudge(done, 'saver')).toBeNull();
+  });
+  it('sends you to bed 7.5 hours before wake', () => {
+    expect(buildNudge(briefCtx(), 'bed')).toBe('Bed by 22:30 to be up at 06:00. Office tomorrow, leave by 08:00. Phone down.');
+  });
+});
+
+describe('scout tools', () => {
+  it('cleans interests', () => {
+    expect(cleanInterests([' Samay Raina ', 'samay raina', '', 3, 'PSTG'])).toEqual(['Samay Raina', 'PSTG']);
+  });
+  it('adds and removes interests on the caller only', async () => {
+    const { calls, rpc } = fakeRpc();
+    const c = ctx();
+    c.settings = { interests: ['Cricket'] };
+    await runTool('update_interests', { add: ['Samay Raina'], remove: ['cricket'] }, c, 'tok', rpc);
+    expect(calls[0]).toMatchObject({ fn: 'hm_homie_save_settings', args: { p_token: 'tok' } });
+    expect((calls[0].args.p_settings as { interests: string[] }).interests).toEqual(['Samay Raina']);
+  });
+  it('saves a find as a private note and notifies through the given notifier', async () => {
+    const { calls, rpc } = fakeRpc();
+    await runTool('save_find', { title: 'Samay Raina in Bangalore', detail: 'Dec 14', url: 'https://example.com/x' }, ctx(), 'tok', rpc);
+    expect(calls[0].args.p_item).toEqual({ kind: 'note', text: 'Scout: Samay Raina in Bangalore. Dec 14 https://example.com/x' });
+    const sent: string[] = [];
+    const out = await runTool('notify', { title: 'Homie scout', body: '1 new find' }, ctx(), 'tok', rpc, async (t, b) => (sent.push(`${t}|${b}`), 'sent to 1 device(s)'));
+    expect(out.result).toBe('sent to 1 device(s)');
+    expect(sent).toEqual(['Homie scout|1 new find']);
+    expect((await runTool('notify', { title: 'a', body: 'b' }, ctx(), 'tok', rpc)).error).toBe(true);
+  });
+  it('ticks plan tasks by reading the full plan first', async () => {
+    const plan = { id: 'p1', title: 'Europe', checklist: [{ id: 't1', text: 'Visa', due: null, done: false }], notes: '' };
+    const calls: { fn: string; args: Record<string, unknown> }[] = [];
+    const rpc = async (fn: string, args: Record<string, unknown>) => (calls.push({ fn, args }), fn === 'hm_homie_lookup' ? [plan] : null);
+    const out = await runTool('tick_plan_tasks', { plan_id: 'p1', task_ids: ['t1'] }, ctx(), 'tok', rpc);
+    expect(out.error).toBeUndefined();
+    expect(calls[1].args.p_rows).toEqual([{ ...plan, checklist: [{ id: 't1', text: 'Visa', due: null, done: true }] }]);
+  });
+});

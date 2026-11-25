@@ -46,6 +46,13 @@ upkeep task, plan, document, help day off, bug/idea.
   `/mcp/<personal key>` (`worker/mcp.ts`, same tools plus `get_overview`; key = session token from
   `hm_homie_siri_key`). Briefs are rule-based (`buildBrief` in `src/lib/homie.ts`) when there is no key.
   No work details are stored.
+  Round 1 (0028): the connector also has `lookup` (`hm_homie_lookup`: plans, todos, upkeep, bills, documents
+  without numbers, habit_logs, own expenses, my_history), plan tools (add_plan, add_plan_tasks, tick_plan_tasks;
+  they read the full row first, then hm_upsert it), complete_todo, update_interests, save_find ("Scout: ..." notes)
+  and `notify` (`hm_homie_notify_targets`: own phones only, 6 a day). `hm_homie_due` also returns nudge kinds
+  leave / saver / bed (`buildNudge`, once a day each, off with settings.nudges). Interests live in the person's
+  own Homie settings; a daily "Homie scout" scheduled task in the owner's Claude account uses the connector
+  to search the web for them, save finds and notify. Everything Homie is per account, never shared.
 
 Meal and pantry suggestions are rule-based. AI is used only in Homie (owner approved on 2026-11-25).
 
