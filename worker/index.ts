@@ -301,6 +301,17 @@ export default {
       return mcpHttp(req, key, (fn, args) => rpc(env, fn, args), notifier(env, key));
     }
     if (url.pathname === '/api/homie/status') return json({ ai: !!env.ANTHROPIC_API_KEY });
+    // iPhone Shortcut: unlock Homie in Claude for 20 minutes with the unlock key (it can't read anything).
+    if (url.pathname === '/api/homie/unlock') {
+      const say = (t: string, status = 200) => new Response(t, { status, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+      try {
+        const r = (await rpc(env, 'hm_homie_unlock_with_key', { p_key: url.searchParams.get('k') ?? '' })) as { ok: boolean; pin?: boolean };
+        if (!r.ok) return say('This unlock link no longer works. Make a new one in Homie settings.', 401);
+        return say(r.pin ? 'Homie unlocked for 20 minutes.' : 'Homie is open (no PIN set).');
+      } catch {
+        return say('HomeManager is not reachable right now.', 502);
+      }
+    }
     if (url.pathname === '/api/homie') {
       if (req.method !== 'POST') return json({ ok: false }, 405);
       return homieChat(req, env);

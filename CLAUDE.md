@@ -62,6 +62,8 @@ upkeep task, plan, document, help day off, bug/idea.
   (`hm_homie_gate`) except unlock / lock / scout_view / save_find / notify until unlocked by `unlock` with the PIN
   (5 wrong an hour = locked) or by the app's "Unlock and open Claude" (`hm_homie_unlock_app`, refuses the
   connector key). Open for 20 minutes after the last use. The scout only uses scout_view, save_find, notify.
+  Home screen shortcut (0031): `hm_homie_unlock_key_make` (app only) gives a separate unlock key (sha256 stored);
+  an iPhone Shortcut calls `GET /api/homie/unlock?k=` (Worker -> `hm_homie_unlock_with_key`, unlock only) then opens Claude.
 
 Meal and pantry suggestions are rule-based. AI is used only in Homie (owner approved on 2026-11-25).
 

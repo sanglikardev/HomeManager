@@ -26,6 +26,7 @@ export async function loadHomie(): Promise<HomieData> {
 
 export const setHomiePin = (pin: string) => call<void>('hm_homie_set_pin', { p_pin: pin });
 export const unlockHomieFromApp = () => call<{ pin: boolean; unlockedUntil: string | null }>('hm_homie_unlock_app');
+export const makeUnlockKey = () => call<string>('hm_homie_unlock_key_make');
 export const lockHomie = () => call<void>('hm_homie_lock');
 export const homieLockState = () => call<{ pin: boolean; unlockedUntil: string | null }>('hm_homie_lock_state');
 

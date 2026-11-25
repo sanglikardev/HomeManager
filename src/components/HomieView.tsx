@@ -1,7 +1,7 @@
 import { ArrowLeft, Bell, Brain, Check, Copy, Lightbulb, Mic, Send, Settings, Sparkles, Trash2, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cleanInterests, DEFAULT_HOMIE, friendlyWhen, localToUtc, sortItems, WEEKDAYS, type HomieAction, type HomieChatLine, type HomieItem, type HomieSettings } from '../lib/homie';
-import { askHomie, clearHomieChat, homieLockState, loadHomie, lockHomie, makeSiriKey, setHomiePin, unlockHomieFromApp, saveHomieItem, saveHomieSettings, type HomieData } from '../store/homie';
+import { askHomie, clearHomieChat, homieLockState, loadHomie, lockHomie, makeSiriKey, makeUnlockKey, setHomiePin, unlockHomieFromApp, saveHomieItem, saveHomieSettings, type HomieData } from '../store/homie';
 import { useStore } from '../store/store';
 import { TrainingCard } from './HomieTraining';
 import { useToast } from './toast';
@@ -702,6 +702,7 @@ function HomieLock() {
           Remove the PIN
         </button>
       )}
+      {state.pin && <UnlockShortcut />}
     </section>
   );
 }
@@ -741,6 +742,45 @@ function OpenClaude() {
         </button>
       )}
       <span className="w-full text-xs text-teal-800">{open ? 'Open in Claude for 20 minutes after the last use.' : 'Locked in Claude.'}</span>
+    </div>
+  );
+}
+
+const UNLOCK_URL = `${location.origin}/api/homie/unlock?k=`;
+
+// A home-screen iPhone Shortcut: unlock Homie, then open the Claude app.
+function UnlockShortcut() {
+  const toast = useToast();
+  const [key, setKey] = useState<string | null>(null);
+  return (
+    <div className="mt-4 border-t border-stone-200 pt-3">
+      <h4 className="text-sm font-semibold">Home screen shortcut</h4>
+      <p className="mt-1 text-sm text-stone-600">One tap (or "Hey Siri, Homie") unlocks Homie and opens Claude. The link can only unlock, never read your data.</p>
+      {!key ? (
+        <button
+          onClick={() => makeUnlockKey().then(setKey, (e) => toast(e instanceof Error ? e.message : String(e)))}
+          className="mt-2 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-teal-700 ring-1 ring-stone-200"
+        >
+          Make an unlock link (an older one stops working)
+        </button>
+      ) : (
+        <div className="mt-2 space-y-2 text-sm">
+          <button
+            onClick={() => navigator.clipboard?.writeText(UNLOCK_URL + key).then(() => toast('Link copied'), () => toast('Copy failed: select the link and copy it'))}
+            className="flex w-full items-center gap-2 rounded-xl bg-white px-3 py-2 text-left font-mono text-xs ring-1 ring-stone-200"
+          >
+            <Copy size={14} className="shrink-0" />
+            <span className="break-all">{UNLOCK_URL + key}</span>
+          </button>
+          <ol className="list-decimal space-y-1 pl-5 text-stone-700">
+            <li>Copy the link. Open the Shortcuts app and tap +.</li>
+            <li>Add the action "Get Contents of URL" and paste the link.</li>
+            <li>Add the action "Open App" and pick Claude.</li>
+            <li>Name it "Homie". Tap the share icon, then "Add to Home Screen".</li>
+          </ol>
+          <p className="text-xs text-stone-500">Keep this link to yourself. This screen shows it only once.</p>
+        </div>
+      )}
     </div>
   );
 }
