@@ -33,7 +33,16 @@ upkeep task, plan, document, help day off, bug/idea.
 - **Settings** (gear on Today): grouped Your home / Tabs / Today screen (show, hide, reorder blocks; stored in household settings: `disabledModules`, `todayOrder`, `todayHidden`) / Food & meals / Family / App
   (notifications, feedback, sign out). Feedback icon on Today shows a badge when Claude replied.
 
-Suggestions are rule-based on purpose (owner chose: no AI in the app).
+- **Homie** (personal assistant, `#homie`, "Ask Homie" bar on Today): a chat per account, private to that
+  account (`hm_homie_settings`, `hm_homie_items` = facts / notes / reminders / busy days, `hm_homie_chat`).
+  `POST /api/homie` (app) and `/api/homie/siri?k=` (iPhone Shortcut, plain-text reply; the key is a session
+  token from `hm_homie_siri_key`) run one Claude turn in `worker/homie.ts` with tools that file reminders,
+  facts, notes, busy days, and household to-dos, shopping, expenses and habit logs (via `hm_upsert` with the
+  caller's token). Context comes from `hm_homie_context` (functions in schema `hm_private` are not exposed).
+  The 5-minute cron (`hm_homie_due`) pushes due reminders and writes the morning/evening briefs.
+  Needs the `ANTHROPIC_API_KEY` Worker secret (optional `HOMIE_MODEL`). No work details are stored.
+
+Meal and pantry suggestions are rule-based. AI is used only in Homie (owner approved on 2026-11-25).
 
 ## Stack and layout
 
@@ -53,6 +62,7 @@ src/data/                seed items, dishes, upkeep templates
 worker/index.ts          Cloudflare Worker: POST /api/feedback/run, POST /api/push/test, hourly cron for
                          morning notifications; everything else = static assets
 worker/push.ts           Web Push encryption (RFC 8291) + VAPID signing with WebCrypto
+worker/homie.ts          Homie: Claude call, tools, briefs (Anthropic TypeScript SDK)
 supabase/migrations/     SQL history (applied by hand / via the Supabase connector)
 public/                  PWA manifest, icons, pass-through sw.js
 ```
@@ -95,7 +105,7 @@ Check the result with the GitHub check run on the commit.
   hm_dishes, hm_meals, hm_shopping, hm_pantry_events, hm_upkeep, hm_plans, hm_expenses, hm_bills,
   hm_data_tables, hm_config, hm_expense_sharing, hm_sms_keys, hm_sms_seen,
   hm_feedback, hm_feedback_failures, hm_staff, hm_docs, hm_doc_files, hm_todos, hm_habits, hm_habit_logs,
-  hm_push_subs, hm_widget_keys.
+  hm_push_subs, hm_widget_keys, hm_homie_settings, hm_homie_items, hm_homie_chat.
   `hm_members` is an unused leftover.
 - Document files are base64 rows in `hm_doc_files` (written via hm_upsert, read one at a
   time with `hm_doc_file(token, id)`, never in hm_load). Photos are shrunk client-side.

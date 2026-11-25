@@ -8,6 +8,7 @@
 import { WIDGET_BODY } from '../src/lib/widget';
 import { parseBankSms, smsHash } from '../src/lib/sms';
 import { sendPush, type PushTarget } from './push';
+import { homieTurn, writeBrief, type HomieContext } from './homie';
 
 interface Env {
   ASSETS: { fetch: (req: Request) => Promise<Response> };
@@ -16,6 +17,8 @@ interface Env {
   CLAUDE_FIRE_URL?: string; // secret: the scheduled task's Fire URL
   CLAUDE_FIRE_TOKEN?: string; // secret: the scheduled task's API token
   PUSH_SECRET?: string; // secret: lets the Worker read due notifications (hm_push_due)
+  ANTHROPIC_API_KEY?: string; // secret: Homie, the personal assistant
+  HOMIE_MODEL?: string; // optional: a different Claude model for Homie
 }
 
 const PUSH_SUBJECT = 'https://homemanager.sanglikardev.workers.dev';
@@ -70,8 +73,95 @@ async function rpc(env: Env, fn: string, args: Record<string, unknown>) {
     headers: { apikey: env.SUPABASE_KEY, authorization: `Bearer ${env.SUPABASE_KEY}`, 'content-type': 'application/json' },
     body: JSON.stringify(args),
   });
-  if (!res.ok) throw new Error(`${fn} failed: ${res.status}`);
-  return res.json() as Promise<Record<string, unknown>>;
+  if (!res.ok) {
+    const detail = (await res.json().catch(() => null)) as { message?: string } | null;
+    throw new Error(detail?.message ? `${fn}: ${detail.message}` : `${fn} failed: ${res.status}`);
+  }
+  // Functions that return nothing answer with an empty body.
+  const body = await res.text();
+  return (body ? JSON.parse(body) : null) as Record<string, unknown>;
+}
+
+// ---------- Homie ----------
+
+const signedOut = (e: unknown) => e instanceof Error && /sign in again/i.test(e.message);
+
+async function homieReply(env: Env, token: string, text: string) {
+  const ctx = (await rpc(env, 'hm_homie_context', { p_token: token })) as unknown as HomieContext;
+  await rpc(env, 'hm_homie_chat_add', { p_token: token, p_role: 'user', p_text: text });
+  const out = await homieTurn({ apiKey: env.ANTHROPIC_API_KEY!, model: env.HOMIE_MODEL, token, text, ctx, rpc: (fn, args) => rpc(env, fn, args) });
+  const saved = out.actions.length ? `${out.reply}\n\n${out.actions.map((a) => `• ${a.label}`).join('\n')}` : out.reply;
+  await rpc(env, 'hm_homie_chat_add', { p_token: token, p_role: 'assistant', p_text: saved });
+  return out;
+}
+
+// From the app: { token, text } -> { ok, reply, actions }.
+async function homieChat(req: Request, env: Env): Promise<Response> {
+  if (!env.ANTHROPIC_API_KEY) return json({ ok: false, reason: 'not_configured' });
+  const { token, text } = (await req.json().catch(() => ({}))) as { token?: string; text?: string };
+  if (!token) return json({ ok: false, reason: 'signin' });
+  const msg = (text ?? '').trim().slice(0, 4000);
+  if (!msg) return json({ ok: false, reason: 'empty' });
+  try {
+    return json({ ok: true, ...(await homieReply(env, token, msg)) });
+  } catch (e) {
+    if (signedOut(e)) return json({ ok: false, reason: 'signin' });
+    return json({ ok: false, reason: 'error', message: e instanceof Error ? e.message : String(e) }, 502);
+  }
+}
+
+// From the Siri Shortcut: ?k=<Siri key>, the words as ?text= or the body. Answers in plain text for Siri to speak.
+async function homieSiri(req: Request, env: Env, url: URL): Promise<Response> {
+  const say = (t: string, status = 200) => new Response(t, { status, headers: { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store' } });
+  if (!env.ANTHROPIC_API_KEY) return say("Homie isn't set up yet.", 503);
+  let text = url.searchParams.get('text') ?? '';
+  if (!text && req.method === 'POST') {
+    const raw = await req.text();
+    try {
+      const j = JSON.parse(raw) as { text?: unknown };
+      text = typeof j?.text === 'string' ? j.text : raw;
+    } catch {
+      text = new URLSearchParams(raw).get('text') ?? raw;
+    }
+  }
+  text = text.trim().slice(0, 4000);
+  if (!text) return say('I didn\'t catch that.');
+  try {
+    return say((await homieReply(env, url.searchParams.get('k') ?? '', text)).reply);
+  } catch (e) {
+    if (signedOut(e)) return say('This Siri key no longer works. Make a new one in Homie settings.', 401);
+    return say('Something went wrong. Try again in a minute.', 502);
+  }
+}
+
+interface HomieDue {
+  vapid: JsonWebKey | null;
+  reminders: { id: string; text: string; subs: (PushTarget & { id: string })[] }[];
+  briefs: { account: string; kind: 'morning' | 'evening'; subs: (PushTarget & { id: string })[]; context: HomieContext }[];
+}
+
+// Every 5 minutes: due reminders, and the morning and evening briefs.
+async function homieCron(env: Env) {
+  if (!env.PUSH_SECRET) return;
+  const due = (await rpc(env, 'hm_homie_due', { p_secret: env.PUSH_SECRET, p_briefs: !!env.ANTHROPIC_API_KEY })) as unknown as HomieDue;
+  const items: PushBatch['items'] = [];
+  for (const r of due.reminders) {
+    for (const s of r.subs) items.push({ ...s, title: 'Reminder', body: r.text, url: '/#homie', tag: `homie-${r.id}` });
+  }
+  for (const b of due.briefs) {
+    try {
+      const text = await writeBrief({ apiKey: env.ANTHROPIC_API_KEY!, model: env.HOMIE_MODEL, kind: b.kind, ctx: b.context });
+      if (!text) continue;
+      await rpc(env, 'hm_homie_brief_save', { p_secret: env.PUSH_SECRET, p_account: b.account, p_text: text });
+      const name = (b.context.settings?.name as string) || 'Homie';
+      for (const s of b.subs) items.push({ ...s, title: `${name} · ${b.kind === 'morning' ? 'Good morning' : 'Evening wrap-up'}`, body: text, url: '/#homie', tag: `homie-${b.kind}` });
+    } catch {
+      // one failed brief must not stop the others
+    }
+  }
+  await deliver(env, { vapid: due.vapid, items });
+  // Removes old chat and forgotten items; missing until 0027 is run by hand.
+  await rpc(env, 'hm_homie_cleanup', { p_secret: env.PUSH_SECRET }).catch(() => null);
 }
 
 async function runFeedback(req: Request, env: Env): Promise<Response> {
@@ -177,6 +267,14 @@ export default {
         return json({ ok: false, error: true, message: e instanceof Error ? e.message : String(e) }, 502);
       }
     }
+    if (url.pathname === '/api/homie') {
+      if (req.method !== 'POST') return json({ ok: false }, 405);
+      return homieChat(req, env);
+    }
+    if (url.pathname === '/api/homie/siri') {
+      if (req.method !== 'POST' && req.method !== 'GET') return json({ ok: false }, 405);
+      return homieSiri(req, env, url);
+    }
     if (url.pathname === '/api/push/test') {
       if (req.method !== 'POST') return json({ ok: false }, 405);
       try {
@@ -189,10 +287,12 @@ export default {
   },
 
   // Hourly: morning summaries whose local hour has come, and habit reminders for this hour.
-  async scheduled(_event: unknown, env: Env, ctx: { waitUntil: (p: Promise<unknown>) => void }) {
+  // Every 5 minutes: Homie's reminders and briefs.
+  async scheduled(event: { cron?: string }, env: Env, ctx: { waitUntil: (p: Promise<unknown>) => void }) {
     if (!env.PUSH_SECRET) return;
-    ctx.waitUntil(
-      rpc(env, 'hm_push_due', { p_secret: env.PUSH_SECRET }).then((b) => deliver(env, b as unknown as PushBatch)),
-    );
+    if (event.cron === '0 * * * *') {
+      ctx.waitUntil(rpc(env, 'hm_push_due', { p_secret: env.PUSH_SECRET }).then((b) => deliver(env, b as unknown as PushBatch)));
+    }
+    ctx.waitUntil(homieCron(env).catch(() => null));
   },
 };

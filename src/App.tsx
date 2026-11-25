@@ -18,6 +18,7 @@ import { ShoppingView } from './components/ShoppingView';
 import { TodayView } from './components/TodayView';
 import { TodosView } from './components/TodosView';
 import { HabitsView } from './components/HabitsView';
+import { HomieView } from './components/HomieView';
 import { habitsOn } from './lib/habits';
 import { setTourPending, tourPending, WelcomeTour } from './components/WelcomeTour';
 import { ToastProvider } from './components/toast';
@@ -172,7 +173,7 @@ function JoinOrCreate({ backend, onCreate, onJoined }: { backend: Backend; onCre
   );
 }
 
-type Tab = 'today' | 'food' | 'home' | 'plans' | 'money' | 'todos' | 'habits' | 'more';
+type Tab = 'today' | 'food' | 'home' | 'plans' | 'money' | 'todos' | 'habits' | 'more' | 'homie';
 type FoodPage = 'shopping' | 'pantry' | 'dishes';
 type HomePage = 'upkeep' | 'routine' | 'help' | 'docs';
 const FOOD: FoodPage[] = ['shopping', 'pantry', 'dishes'];
@@ -183,7 +184,7 @@ function fromHash(h: string): { tab: Tab; food?: FoodPage; home?: HomePage } {
   if (h === 'kitchen') return { tab: 'food', food: 'pantry' };
   if (FOOD.includes(h as FoodPage)) return { tab: 'food', food: h as FoodPage };
   if (HOME.includes(h as HomePage)) return { tab: 'home', home: h as HomePage };
-  if (['today', 'food', 'home', 'plans', 'money', 'todos', 'habits', 'more'].includes(h)) return { tab: h as Tab };
+  if (['today', 'food', 'home', 'plans', 'money', 'todos', 'habits', 'more', 'homie'].includes(h)) return { tab: h as Tab };
   return { tab: 'today' };
 }
 
@@ -193,7 +194,7 @@ function Shell() {
   const [tabState, setTab] = useState<Tab>(start.tab);
   const settings = store.data.household.settings;
   // A tab that was switched off in Settings falls back to Today.
-  const tab: Tab = tabState === 'today' || tabState === 'more' || moduleOn(settings, tabState) ? tabState : 'today';
+  const tab: Tab = tabState === 'today' || tabState === 'more' || tabState === 'homie' || moduleOn(settings, tabState) ? tabState : 'today';
   const [food, setFood] = useState<FoodPage>(start.food ?? 'shopping');
   const [home, setHome] = useState<HomePage>(start.home ?? 'upkeep');
   const [feedback, setFeedback] = useState(false);
@@ -297,12 +298,13 @@ function Shell() {
         {tab === 'habits' && <HabitsView />}
         {tab === 'plans' && <PlansView />}
         {tab === 'money' && <MoneyView />}
+        {tab === 'homie' && <HomieView onBack={() => setTab('today')} />}
         {tab === 'more' && <MoreView onBack={() => setTab('today')} onTour={() => setTour(true)} />}
       </main>
       {tour && <WelcomeTour settings={settings} onClose={closeTour} />}
       {feedback && <FeedbackSheet onClose={() => setFeedback(false)} />}
       {adding && <QuickAdd onClose={() => setAdding(false)} onGo={go} />}
-      {tab !== 'more' && (
+      {tab !== 'more' && tab !== 'homie' && (
         <button
           onClick={() => setAdding(true)}
           aria-label="Add"

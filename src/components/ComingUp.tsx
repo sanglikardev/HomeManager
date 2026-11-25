@@ -16,7 +16,7 @@ import { useToast } from './toast';
 import { RenewSheet } from './UpkeepSheet';
 import { STATUS_STYLE } from './UpkeepView';
 
-export type Dest = 'todos' | 'habits' | 'shopping' | 'pantry' | 'dishes' | 'upkeep' | 'routine' | 'help' | 'docs' | 'plans' | 'money';
+export type Dest = 'todos' | 'habits' | 'shopping' | 'pantry' | 'dishes' | 'upkeep' | 'routine' | 'help' | 'docs' | 'plans' | 'money' | 'homie';
 export type Go = (to: Dest) => void;
 
 const SHOWN = 6;

@@ -246,6 +246,12 @@ export function TodayView({ onGo, actions }: { onGo: Go; actions?: React.ReactNo
           </div>
           <div className="shrink-0">{actions}</div>
         </div>
+        {store.backend.mode === 'cloud' && (
+          <button onClick={() => onGo('homie')} className="mt-3 flex w-full items-center gap-2 rounded-2xl bg-white px-4 py-3 text-left text-sm text-stone-500 ring-1 ring-stone-200">
+            <Sparkles size={18} className="text-teal-700" />
+            <span className="flex-1">Ask Homie, or tell it anything</span>
+          </button>
+        )}
       </header>
 
       {cards.map((id) => (
