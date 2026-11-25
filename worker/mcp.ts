@@ -17,6 +17,7 @@ Call get_overview at the start of a conversation (and before planning or filing 
 - More data on request: lookup (plans with checklists, to-dos, upkeep, bills, documents, habit history, their expenses, everything saved before). Trips and events: add_plan, add_plan_tasks, tick_plan_tasks. Done to-dos: complete_todo.
 - Training (gym + knee rehab toward their goal date): overview.training.today is today's session. log_workout when they train (ask how the knee felt, 0-10); set_training to start or change the plan. Push them in their tone, but knee pain wins: never push through pain, 6+ means rest and their physio.
 - Things you found on the web for them: save_find (so they aren't repeated). Interrupt them with notify only when it's worth it.
+- Homie lock: if a tool says Homie is locked, ask them to type their PIN and call unlock with it. Never repeat the PIN, never save it to memory, notes or anywhere else. Call lock when they say they're done.
 - Confirm briefly what you saved. Don't file small talk. For pain or injury, suggest a doctor or physio; never diagnose.`;
 
 const OVERVIEW_TOOL = {
@@ -25,9 +26,28 @@ const OVERVIEW_TOOL = {
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
 };
 
+const empty = { type: 'object', properties: {}, additionalProperties: false };
+const LOCK_TOOLS = [
+  {
+    name: 'unlock',
+    description: 'Unlock Homie with the PIN the person types (when another tool says Homie is locked). Stays open 20 minutes from the last use. Never store or repeat the PIN.',
+    inputSchema: { type: 'object', properties: { pin: { type: 'string' } }, required: ['pin'], additionalProperties: false },
+  },
+  { name: 'lock', description: 'Lock Homie again right away (when they are done).', inputSchema: empty },
+  {
+    name: 'scout_view',
+    description: 'For the daily scout only: their interests, upcoming trips (where and when) and earlier scout finds. Works while Homie is locked.',
+    inputSchema: empty,
+  },
+];
+// What still works while Homie is locked: the scout's view, saving a find and notifying their phone.
+const OPEN_WHEN_LOCKED = new Set(['unlock', 'lock', 'scout_view', 'save_find', 'notify']);
+const LOCKED = 'Homie is locked. Ask the person to type their Homie PIN, then call unlock with it.';
+
 export function mcpTools() {
   return [
     OVERVIEW_TOOL,
+    ...LOCK_TOOLS,
     ...TOOLS.map((t) => {
       const tool = t as { name: string; description?: string; input_schema: unknown };
       return { name: tool.name, description: tool.description ?? '', inputSchema: tool.input_schema };
@@ -68,6 +88,18 @@ export async function handleMcp(msg: RpcMessage, key: string, rpc: Rpc, notify?:
       const args = (msg.params?.arguments ?? {}) as Record<string, unknown>;
       let ctx: HomieContext;
       try {
+        if (name === 'unlock') {
+          const r = (await rpc('hm_homie_unlock', { p_token: key, p_pin: String(args.pin ?? '').trim() })) as { ok: boolean; reason?: string };
+          if (r.ok) return reply(msg.id, text(r.reason === 'no_pin' ? 'No PIN is set, Homie is open. They can set one in HomeManager > Homie > settings.' : 'Unlocked for 20 minutes from the last use. Now call get_overview.'));
+          return reply(msg.id, text(r.reason === 'locked' ? 'Too many wrong PINs. Homie stays locked for an hour.' : 'Wrong PIN.', true));
+        }
+        if (name === 'lock') {
+          await rpc('hm_homie_lock', { p_token: key });
+          return reply(msg.id, text('Locked.'));
+        }
+        if (name === 'scout_view') return reply(msg.id, text(JSON.stringify(await rpc('hm_homie_scout_view', { p_token: key }))));
+        const gate = (await rpc('hm_homie_gate', { p_token: key })) as { unlocked: boolean };
+        if (!gate.unlocked && !OPEN_WHEN_LOCKED.has(name)) return reply(msg.id, text(LOCKED, true));
         ctx = (await rpc('hm_homie_context', { p_token: key })) as unknown as HomieContext;
       } catch (e) {
         const signedOut = e instanceof Error && /sign in again/i.test(e.message);

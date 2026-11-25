@@ -1,7 +1,7 @@
 import { ArrowLeft, Bell, Brain, Check, Copy, Lightbulb, Mic, Send, Settings, Sparkles, Trash2, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { cleanInterests, DEFAULT_HOMIE, friendlyWhen, localToUtc, sortItems, WEEKDAYS, type HomieAction, type HomieChatLine, type HomieItem, type HomieSettings } from '../lib/homie';
-import { askHomie, clearHomieChat, loadHomie, makeSiriKey, saveHomieItem, saveHomieSettings, type HomieData } from '../store/homie';
+import { askHomie, clearHomieChat, homieLockState, loadHomie, lockHomie, makeSiriKey, setHomiePin, unlockHomieFromApp, saveHomieItem, saveHomieSettings, type HomieData } from '../store/homie';
 import { useStore } from '../store/store';
 import { TrainingCard } from './HomieTraining';
 import { useToast } from './toast';
@@ -475,6 +475,7 @@ function SettingsSheet({ data, ai, onSaved, onCleared, onClose }: { data: HomieD
       </Field>
 
       <ConnectClaude hasKey={data.hasSiri} />
+      {data.hasSiri && <HomieLock />}
 
       {ai && (
       <section className="mb-4 rounded-2xl bg-stone-50 p-4 ring-1 ring-stone-200">
@@ -566,9 +567,10 @@ function ClaudeHome({ data, onChange, lines, onSettings }: { data: HomieData; on
           </button>
         </div>
       ) : (
-        <p className="rounded-2xl bg-teal-50 px-4 py-3 text-sm text-teal-900 ring-1 ring-teal-200">
-          Talk to {data.settings.name} in the Claude app (HomeManager connector). Reminders and briefs arrive here as notifications.
-        </p>
+        <div className="rounded-2xl bg-teal-50 px-4 py-3 text-sm text-teal-900 ring-1 ring-teal-200">
+          <p>Talk to {data.settings.name} in the Claude app (HomeManager connector). Reminders and briefs arrive here as notifications.</p>
+          <OpenClaude />
+        </div>
       )}
 
       {brief && (
@@ -639,5 +641,106 @@ function ConnectClaude({ hasKey }: { hasKey: boolean }) {
         </div>
       )}
     </section>
+  );
+}
+
+// A PIN for the Claude connector, for a Claude account shared with family.
+function HomieLock() {
+  const toast = useToast();
+  const [state, setState] = useState<{ pin: boolean; unlockedUntil: string | null } | null>(null);
+  const [pin, setPin] = useState('');
+  useEffect(() => {
+    homieLockState().then(setState, () => setState(null));
+  }, []);
+  if (!state) return null;
+  const savePin = async (value: string) => {
+    try {
+      await setHomiePin(value);
+      setState({ pin: !!value, unlockedUntil: null });
+      setPin('');
+      toast(value ? 'PIN set. Homie in Claude is locked.' : 'PIN removed');
+    } catch (e) {
+      toast(e instanceof Error ? e.message : String(e));
+    }
+  };
+  return (
+    <section className="mb-4 rounded-2xl bg-stone-50 p-4 ring-1 ring-stone-200">
+      <h3 className="font-semibold">Lock Homie in Claude</h3>
+      <p className="mt-1 text-sm text-stone-600">
+        For a shared Claude account. With a PIN, Claude can't see or change anything until you type "unlock" and your PIN in the chat. It stays open 20 minutes after the last use. Use an incognito chat, and never save the PIN in Claude. The morning scout still works.
+      </p>
+      {state.pin && (
+        <p className="mt-2 text-sm font-medium text-stone-800">
+          {state.unlockedUntil ? `Unlocked right now.` : 'Locked.'}
+          {state.unlockedUntil && (
+            <button
+              onClick={() => lockHomie().then(() => setState({ ...state, unlockedUntil: null }), (e) => toast(String(e)))}
+              className="ml-2 font-semibold text-teal-700"
+            >
+              Lock now
+            </button>
+          )}
+        </p>
+      )}
+      <div className="mt-3 flex gap-2">
+        <input
+          type="password"
+          inputMode="numeric"
+          autoComplete="off"
+          maxLength={8}
+          className={inputCls}
+          placeholder={state.pin ? 'New PIN (4-8 digits)' : 'PIN (4-8 digits)'}
+          value={pin}
+          onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
+        />
+        <PrimaryButton onClick={() => savePin(pin)} disabled={pin.length < 4} className="shrink-0 px-4 py-2">
+          {state.pin ? 'Change' : 'Set'}
+        </PrimaryButton>
+      </div>
+      {state.pin && (
+        <button onClick={() => savePin('')} className="mt-2 text-sm font-semibold text-rose-700">
+          Remove the PIN
+        </button>
+      )}
+    </section>
+  );
+}
+
+// With a PIN set: unlock the connector from the app (only you have the app login) and jump to Claude.
+function OpenClaude() {
+  const toast = useToast();
+  const [state, setState] = useState<{ pin: boolean; unlockedUntil: string | null } | null>(null);
+  useEffect(() => {
+    homieLockState().then(setState, () => setState(null));
+  }, []);
+  if (!state?.pin) return null;
+  const open = state.unlockedUntil && Date.parse(state.unlockedUntil) > Date.now();
+  return (
+    <div className="mt-3 flex flex-wrap items-center gap-2">
+      <a
+        href="https://claude.ai/new"
+        onClick={(e) => {
+          // Unlock first, then leave for Claude (a plain link would cancel the call).
+          e.preventDefault();
+          const href = e.currentTarget.href;
+          unlockHomieFromApp().then(
+            (st) => {
+              setState(st);
+              location.href = href;
+            },
+            (err) => toast(err instanceof Error ? err.message : String(err)),
+          );
+        }}
+        className="rounded-xl bg-teal-700 px-3 py-2 font-semibold text-white"
+      >
+        Unlock and open Claude
+      </a>
+      {open && (
+        <button onClick={() => lockHomie().then(() => setState({ ...state, unlockedUntil: null }), (e) => toast(String(e)))} className="rounded-xl bg-white px-3 py-2 font-semibold text-teal-800 ring-1 ring-teal-200">
+          Lock now
+        </button>
+      )}
+      <span className="w-full text-xs text-teal-800">{open ? 'Open in Claude for 20 minutes after the last use.' : 'Locked in Claude.'}</span>
+    </div>
   );
 }

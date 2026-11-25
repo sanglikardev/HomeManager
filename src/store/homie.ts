@@ -24,6 +24,11 @@ export async function loadHomie(): Promise<HomieData> {
   return { settings: homieSettings(raw.settings), firstTime: !raw.settings, hasSiri: raw.hasSiri, items: raw.items, chat: raw.chat, workouts: raw.workouts ?? [] };
 }
 
+export const setHomiePin = (pin: string) => call<void>('hm_homie_set_pin', { p_pin: pin });
+export const unlockHomieFromApp = () => call<{ pin: boolean; unlockedUntil: string | null }>('hm_homie_unlock_app');
+export const lockHomie = () => call<void>('hm_homie_lock');
+export const homieLockState = () => call<{ pin: boolean; unlockedUntil: string | null }>('hm_homie_lock_state');
+
 export const saveWorkout = (w: Workout) => call<Workout>('hm_homie_workout_save', { p_workout: w });
 
 export const saveHomieSettings = (s: HomieSettings) => call<void>('hm_homie_save_settings', { p_settings: s });

@@ -58,6 +58,10 @@ upkeep task, plan, document, help day off, bug/idea.
   private: `hm_homie_workouts` (one row per person per day, knee pain 0-10), `hm_homie_workout_save`,
   `hm_homie_workouts`. Knee pain 4+ scales the next session down, 6+ means rest and physio. Shown in Homie
   (`HomieTraining.tsx`), briefs, the streak saver and the connector (training in get_overview, log_workout, set_training).
+  Lock (0030, shared Claude account): with a PIN (`hm_homie_set_pin`, bcrypt) the connector refuses everything
+  (`hm_homie_gate`) except unlock / lock / scout_view / save_find / notify until unlocked by `unlock` with the PIN
+  (5 wrong an hour = locked) or by the app's "Unlock and open Claude" (`hm_homie_unlock_app`, refuses the
+  connector key). Open for 20 minutes after the last use. The scout only uses scout_view, save_find, notify.
 
 Meal and pantry suggestions are rule-based. AI is used only in Homie (owner approved on 2026-11-25).
 

@@ -180,12 +180,12 @@ describe('connector (MCP)', () => {
     const calls: string[] = [];
     const rpc = async (fn: string, args: Record<string, unknown>) => {
       calls.push(`${fn}:${args.p_token}`);
-      return fn === 'hm_homie_context' ? ctx() : { id: 'r1' };
+      return fn === 'hm_homie_context' ? ctx() : fn === 'hm_homie_gate' ? { unlocked: true } : { id: 'r1' };
     };
     const out = (await handleMcp({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'remember', arguments: { text: 'Shoe size 10' } } }, KEY, rpc)) as { result: { content: { text: string }[]; isError?: boolean } };
     expect(out.result.isError).toBeUndefined();
     expect(out.result.content[0].text).toContain('Shoe size 10');
-    expect(calls).toEqual([`hm_homie_context:${KEY}`, `hm_homie_item_save:${KEY}`]);
+    expect(calls).toEqual([`hm_homie_gate:${KEY}`, `hm_homie_context:${KEY}`, `hm_homie_item_save:${KEY}`]);
   });
   it('says so when the key no longer works', async () => {
     const rpc = async () => {
@@ -250,5 +250,41 @@ describe('scout tools', () => {
     const out = await runTool('tick_plan_tasks', { plan_id: 'p1', task_ids: ['t1'] }, ctx(), 'tok', rpc);
     expect(out.error).toBeUndefined();
     expect(calls[1].args.p_rows).toEqual([{ ...plan, checklist: [{ id: 't1', text: 'Visa', due: null, done: true }] }]);
+  });
+});
+
+describe('Homie lock (connector)', () => {
+  const KEY = 'b'.repeat(48);
+  const call = (name: string, args: Record<string, unknown>, rpc: (fn: string, a: Record<string, unknown>) => Promise<unknown>) =>
+    handleMcp({ jsonrpc: '2.0', id: 9, method: 'tools/call', params: { name, arguments: args } }, KEY, rpc as never) as Promise<{ result: { content: { text: string }[]; isError?: boolean } }>;
+  const locked = () => {
+    const calls: string[] = [];
+    const rpc = async (fn: string, a: Record<string, unknown>) => {
+      calls.push(fn);
+      if (fn === 'hm_homie_gate') return { pin: true, unlocked: false };
+      if (fn === 'hm_homie_unlock') return a.p_pin === '4821' ? { ok: true } : { ok: false, reason: 'wrong' };
+      if (fn === 'hm_homie_context') return ctx();
+      if (fn === 'hm_homie_scout_view') return { interests: ['PSTG'] };
+      return { id: 'n1' };
+    };
+    return { calls, rpc };
+  };
+  it('refuses data while locked and never loads the context', async () => {
+    const { calls, rpc } = locked();
+    const out = await call('get_overview', {}, rpc);
+    expect(out.result.isError).toBe(true);
+    expect(out.result.content[0].text).toContain('locked');
+    expect(calls).toEqual(['hm_homie_gate']);
+  });
+  it('unlocks with the right PIN only', async () => {
+    const { rpc } = locked();
+    expect((await call('unlock', { pin: '1111' }, rpc)).result.isError).toBe(true);
+    expect((await call('unlock', { pin: ' 4821 ' }, rpc)).result.content[0].text).toContain('Unlocked');
+  });
+  it('lets the scout work while locked', async () => {
+    const { rpc } = locked();
+    expect((await call('scout_view', {}, rpc)).result.content[0].text).toContain('PSTG');
+    expect((await call('save_find', { title: 'PSTG results', detail: 'Up 6%', url: null }, rpc)).result.isError).toBeUndefined();
+    expect((await call('remember', { text: 'x' }, rpc)).result.isError).toBe(true);
   });
 });
