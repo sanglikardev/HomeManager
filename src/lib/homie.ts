@@ -127,3 +127,80 @@ export function sortItems(items: HomieItem[]): HomieItem[] {
 }
 
 export const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+// ---------- briefs without AI ----------
+
+export interface BriefContext {
+  now: string; // local YYYY-MM-DDTHH:MM
+  settings: Partial<HomieSettings>;
+  items: { kind: string; text: string; at: string | null; day: string | null; done: boolean }[];
+  home: {
+    habits?: { name: string; kind: string; target: number; schedule: string; days: number[] | null; perWeek: number | null; today: number; daysDoneLast7: number }[];
+    billsDue?: { name: string; due: string }[];
+    plans?: { title: string; start: string; end: string }[];
+    todos?: { title: string; due: string | null }[];
+  } | null;
+}
+
+const PUSH: Record<HomieTone, { morning: string; evening: string }> = {
+  gentle: { morning: "You've got this.", evening: 'Rest well.' },
+  firm: { morning: 'No excuses today.', evening: 'Phone down on time.' },
+  drill: { morning: 'Up and moving. Now.', evening: 'Lights out. No negotiating.' },
+};
+
+const addDay = (d: string, n: number) => new Date(Date.parse(`${d}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+const weekday = (d: string) => new Date(`${d}T00:00:00Z`).getUTCDay();
+const minutes = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+const clock = (m: number) => {
+  const x = ((m % 1440) + 1440) % 1440;
+  return `${String(Math.floor(x / 60)).padStart(2, '0')}:${String(x % 60).padStart(2, '0')}`;
+};
+const list = (xs: string[], max = 3) => (xs.length > max ? `${xs.slice(0, max).join(', ')} +${xs.length - max}` : xs.join(', '));
+
+// Habits that are on for a day (weekly ones only while the week's count isn't met).
+function habitsDue(ctx: BriefContext, day: string) {
+  return (ctx.home?.habits ?? []).filter((h) =>
+    h.schedule === 'days' ? (h.days ?? []).includes(weekday(day)) : h.schedule === 'weekly' ? h.daysDoneLast7 < (h.perWeek ?? 1) : true,
+  );
+}
+
+function remindersOn(ctx: BriefContext, day: string, tz: number) {
+  return ctx.items
+    .filter((i) => i.kind === 'reminder' && !i.done && i.at && utcToLocal(i.at, tz).slice(0, 10) === day)
+    .sort((a, b) => a.at!.localeCompare(b.at!))
+    .map((i) => `${utcToLocal(i.at!, tz).slice(11)} ${i.text}`);
+}
+
+// A short notification for the morning or the evening, built from the same data Homie sees.
+export function buildBrief(ctx: BriefContext, kind: 'morning' | 'evening'): string {
+  const s = homieSettings(ctx.settings);
+  const today = ctx.now.slice(0, 10);
+  const day = kind === 'morning' ? today : addDay(today, 1);
+  const parts: string[] = [];
+  const office = s.officeDays.includes(weekday(day));
+  const busy = ctx.items.filter((i) => i.kind === 'busy' && i.day === day).map((i) => i.text);
+  const rem = remindersOn(ctx, day, s.tzOffsetMin);
+
+  if (kind === 'morning') {
+    parts.push(office ? `Office day: leave by ${s.leave}.` : 'No office today.');
+    if (busy.length) parts.push(`Busy: ${list(busy, 2)}.`);
+    const habits = habitsDue(ctx, day).filter((h) => h.today < h.target).map((h) => h.name);
+    if (habits.length) parts.push(`Habits: ${list(habits)}.`);
+    if (rem.length) parts.push(`${rem.length} reminder${rem.length > 1 ? 's' : ''}: ${list(rem, 2)}.`);
+    const bills = (ctx.home?.billsDue ?? []).filter((b) => b.due <= today).map((b) => b.name);
+    if (bills.length) parts.push(`Bills due: ${list(bills)}.`);
+    const plans = (ctx.home?.plans ?? []).filter((p) => p.start <= today && p.end >= today).map((p) => p.title);
+    if (plans.length) parts.push(`Today: ${list(plans, 2)}.`);
+    parts.push(PUSH[s.tone].morning);
+  } else {
+    const due = habitsDue(ctx, today);
+    const done = due.filter((h) => h.today >= h.target).map((h) => h.name);
+    const missed = due.filter((h) => h.today < h.target).map((h) => h.name);
+    if (done.length || missed.length) parts.push(missed.length ? `Done: ${done.length}/${due.length}. Still open: ${list(missed)}.` : `All ${done.length} habits done today.`);
+    parts.push(office ? `Tomorrow is an office day, leave by ${s.leave}.` : 'No office tomorrow.');
+    if (busy.length) parts.push(`Busy tomorrow: ${list(busy, 2)}.`);
+    if (rem.length) parts.push(`First up: ${rem[0]}.`);
+    parts.push(`Bed by ${clock(minutes(s.wake) - 450)} to wake at ${s.wake}. ${PUSH[s.tone].evening}`);
+  }
+  return parts.join(' ');
+}

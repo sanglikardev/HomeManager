@@ -129,3 +129,75 @@ describe('homie prompt', () => {
     expect(contextBlock(c)).toContain('"tone":"firm"');
   });
 });
+
+import { buildBrief, type BriefContext } from '../homie';
+import { handleMcp, mcpHttp } from '../../../worker/mcp';
+
+const briefCtx = (): BriefContext => ({
+  now: '2026-11-25T06:05', // a Wednesday
+  settings: {},
+  items: [
+    { kind: 'reminder', text: 'Call the CA', at: '2026-11-25T13:30:00.000Z', done: false, day: null },
+    { kind: 'reminder', text: 'Physio', at: '2026-11-26T01:30:00.000Z', done: false, day: null },
+    { kind: 'busy', text: 'Release day', at: null, day: '2026-11-26', done: false },
+  ],
+  home: {
+    habits: [
+      { name: 'Workout', kind: 'check', target: 1, schedule: 'weekly', days: [], perWeek: 4, today: 0, daysDoneLast7: 1 },
+      { name: 'Water', kind: 'count', target: 8, schedule: 'daily', days: [], perWeek: 1, today: 8, daysDoneLast7: 7 },
+      { name: 'Yoga', kind: 'check', target: 1, schedule: 'days', days: [0], perWeek: 1, today: 0, daysDoneLast7: 0 },
+    ],
+    billsDue: [{ name: 'Electricity', due: '2026-11-24' }],
+    plans: [],
+  },
+});
+
+describe('buildBrief', () => {
+  it('writes a morning brief from the day', () => {
+    expect(buildBrief(briefCtx(), 'morning')).toBe(
+      'Office day: leave by 08:00. Habits: Workout. 1 reminder: 19:00 Call the CA. Bills due: Electricity. No excuses today.',
+    );
+  });
+  it('writes an evening wrap-up with tomorrow and bedtime', () => {
+    expect(buildBrief(briefCtx(), 'evening')).toBe(
+      'Done: 1/2. Still open: Workout. Tomorrow is an office day, leave by 08:00. Busy tomorrow: Release day. First up: 07:00 Physio. Bed by 22:30 to wake at 06:00. Phone down on time.',
+    );
+  });
+});
+
+describe('connector (MCP)', () => {
+  const KEY = 'a'.repeat(48);
+  it('answers initialize and lists tools', async () => {
+    const init = (await handleMcp({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2025-06-18' } }, KEY, async () => null)) as { result: { protocolVersion: string; instructions: string } };
+    expect(init.result.protocolVersion).toBe('2025-06-18');
+    expect(init.result.instructions).toContain('get_overview');
+    const list = (await handleMcp({ jsonrpc: '2.0', id: 2, method: 'tools/list' }, KEY, async () => null)) as { result: { tools: { name: string; inputSchema: object }[] } };
+    expect(list.result.tools.map((t) => t.name)).toContain('get_overview');
+    expect(list.result.tools.every((t) => t.inputSchema)).toBe(true);
+    expect(await handleMcp({ jsonrpc: '2.0', method: 'notifications/initialized' }, KEY, async () => null)).toBeNull();
+  });
+  it('runs a tool with the key as the session token', async () => {
+    const calls: string[] = [];
+    const rpc = async (fn: string, args: Record<string, unknown>) => {
+      calls.push(`${fn}:${args.p_token}`);
+      return fn === 'hm_homie_context' ? ctx() : { id: 'r1' };
+    };
+    const out = (await handleMcp({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'remember', arguments: { text: 'Shoe size 10' } } }, KEY, rpc)) as { result: { content: { text: string }[]; isError?: boolean } };
+    expect(out.result.isError).toBeUndefined();
+    expect(out.result.content[0].text).toContain('Shoe size 10');
+    expect(calls).toEqual([`hm_homie_context:${KEY}`, `hm_homie_item_save:${KEY}`]);
+  });
+  it('says so when the key no longer works', async () => {
+    const rpc = async () => {
+      throw new Error('hm_homie_context: Please sign in again');
+    };
+    const out = (await handleMcp({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'get_overview', arguments: {} } }, KEY, rpc)) as { result: { isError: boolean } };
+    expect(out.result.isError).toBe(true);
+  });
+  it('refuses malformed keys and GET over HTTP', async () => {
+    const post = (key: string) => mcpHttp(new Request('https://x/mcp', { method: 'POST', body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'ping' }) }), key, async () => null);
+    expect((await post('short')).status).toBe(404);
+    expect((await post(KEY)).status).toBe(200);
+    expect((await mcpHttp(new Request('https://x/mcp'), KEY, async () => null)).status).toBe(405);
+  });
+});

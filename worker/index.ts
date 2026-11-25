@@ -9,6 +9,7 @@ import { WIDGET_BODY } from '../src/lib/widget';
 import { parseBankSms, smsHash } from '../src/lib/sms';
 import { sendPush, type PushTarget } from './push';
 import { homieTurn, writeBrief, type HomieContext } from './homie';
+import { mcpHttp } from './mcp';
 
 interface Env {
   ASSETS: { fetch: (req: Request) => Promise<Response> };
@@ -143,14 +144,14 @@ interface HomieDue {
 // Every 5 minutes: due reminders, and the morning and evening briefs.
 async function homieCron(env: Env) {
   if (!env.PUSH_SECRET) return;
-  const due = (await rpc(env, 'hm_homie_due', { p_secret: env.PUSH_SECRET, p_briefs: !!env.ANTHROPIC_API_KEY })) as unknown as HomieDue;
+  const due = (await rpc(env, 'hm_homie_due', { p_secret: env.PUSH_SECRET, p_briefs: true })) as unknown as HomieDue;
   const items: PushBatch['items'] = [];
   for (const r of due.reminders) {
     for (const s of r.subs) items.push({ ...s, title: 'Reminder', body: r.text, url: '/#homie', tag: `homie-${r.id}` });
   }
   for (const b of due.briefs) {
     try {
-      const text = await writeBrief({ apiKey: env.ANTHROPIC_API_KEY!, model: env.HOMIE_MODEL, kind: b.kind, ctx: b.context });
+      const text = await writeBrief({ apiKey: env.ANTHROPIC_API_KEY, model: env.HOMIE_MODEL, kind: b.kind, ctx: b.context });
       if (!text) continue;
       await rpc(env, 'hm_homie_brief_save', { p_secret: env.PUSH_SECRET, p_account: b.account, p_text: text });
       const name = (b.context.settings?.name as string) || 'Homie';
@@ -267,6 +268,13 @@ export default {
         return json({ ok: false, error: true, message: e instanceof Error ? e.message : String(e) }, 502);
       }
     }
+    // No OAuth here: the connector link carries its key. Answer 404 so clients don't mistake the app page for OAuth metadata.
+    if (url.pathname.startsWith('/.well-known/')) return new Response('Not found', { status: 404 });
+    // The Claude app connector (remote MCP): /mcp/<personal key>.
+    if (url.pathname.startsWith('/mcp/')) {
+      return mcpHttp(req, url.pathname.slice(5).replace(/\/$/, ''), (fn, args) => rpc(env, fn, args));
+    }
+    if (url.pathname === '/api/homie/status') return json({ ai: !!env.ANTHROPIC_API_KEY });
     if (url.pathname === '/api/homie') {
       if (req.method !== 'POST') return json({ ok: false }, 405);
       return homieChat(req, env);

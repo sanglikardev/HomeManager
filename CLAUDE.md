@@ -40,7 +40,12 @@ upkeep task, plan, document, help day off, bug/idea.
   facts, notes, busy days, and household to-dos, shopping, expenses and habit logs (via `hm_upsert` with the
   caller's token). Context comes from `hm_homie_context` (functions in schema `hm_private` are not exposed).
   The 5-minute cron (`hm_homie_due`) pushes due reminders and writes the morning/evening briefs.
-  Needs the `ANTHROPIC_API_KEY` Worker secret (optional `HOMIE_MODEL`). No work details are stored.
+  The in-app chat needs the `ANTHROPIC_API_KEY` Worker secret (optional `HOMIE_MODEL`). The owner chose NOT to
+  pay for the API (2026-11-25), so the key is unset: Homie's screen then shows lists, quick reminder and setup,
+  and the talking happens in the owner's Claude app through the HomeManager connector, a remote MCP server at
+  `/mcp/<personal key>` (`worker/mcp.ts`, same tools plus `get_overview`; key = session token from
+  `hm_homie_siri_key`). Briefs are rule-based (`buildBrief` in `src/lib/homie.ts`) when there is no key.
+  No work details are stored.
 
 Meal and pantry suggestions are rule-based. AI is used only in Homie (owner approved on 2026-11-25).
 

@@ -1,6 +1,6 @@
 import { ArrowLeft, Bell, Brain, Check, Copy, Lightbulb, Mic, Send, Settings, Sparkles, Trash2, Undo2 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { DEFAULT_HOMIE, friendlyWhen, sortItems, WEEKDAYS, type HomieAction, type HomieChatLine, type HomieItem, type HomieSettings } from '../lib/homie';
+import { DEFAULT_HOMIE, friendlyWhen, localToUtc, sortItems, WEEKDAYS, type HomieAction, type HomieChatLine, type HomieItem, type HomieSettings } from '../lib/homie';
 import { askHomie, clearHomieChat, loadHomie, makeSiriKey, saveHomieItem, saveHomieSettings, type HomieData } from '../store/homie';
 import { useStore } from '../store/store';
 import { useToast } from './toast';
@@ -40,6 +40,14 @@ export function HomieView({ onBack }: { onBack: () => void }) {
   const endRef = useRef<HTMLDivElement>(null);
   const recRef = useRef<Recognition | null>(null);
   const cloud = store.backend.mode === 'cloud';
+  // Without an API key on the server, the talking happens in the Claude app through the connector.
+  const [ai, setAi] = useState<boolean | null>(null);
+  useEffect(() => {
+    fetch('/api/homie/status')
+      .then((r) => r.json() as Promise<{ ai: boolean }>)
+      .then((r) => setAi(r.ai))
+      .catch(() => setAi(false));
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -151,6 +159,10 @@ export function HomieView({ onBack }: { onBack: () => void }) {
       />
       {error && <p className="mt-3 rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
 
+      {ai === false && data && <ClaudeHome data={data} onChange={setData} lines={lines} onSettings={() => setSheet('settings')} />}
+
+      {ai && (
+      <>
       <div className="flex-1 space-y-3 pb-24 pt-4">
         {!lines.length && data && (
           <div className="rounded-3xl bg-gradient-to-br from-teal-700 to-sky-700 p-5 text-white">
@@ -206,11 +218,14 @@ export function HomieView({ onBack }: { onBack: () => void }) {
           </button>
         )}
       </form>
+      </>
+      )}
 
       {sheet === 'knows' && data && <KnowsSheet data={data} onChange={setData} onClose={() => setSheet(null)} />}
       {sheet === 'settings' && data && (
         <SettingsSheet
           data={data}
+          ai={!!ai}
           onSaved={(s) => setData({ ...data, settings: s })}
           onCleared={() => {
             setLines([]);
@@ -277,6 +292,14 @@ function Bubble({ line, onUndo }: { line: Line; onUndo: (a: HomieAction) => void
 const KIND_LABEL: Record<HomieItem['kind'], string> = { reminder: 'Reminders', busy: 'Busy days', fact: 'Things I know about you', note: 'Notes and ideas' };
 
 function KnowsSheet({ data, onChange, onClose }: { data: HomieData; onChange: (d: HomieData) => void; onClose: () => void }) {
+  return (
+    <Sheet title={`Things ${data.settings.name} knows`} onClose={onClose}>
+      <KnowsList data={data} onChange={onChange} />
+    </Sheet>
+  );
+}
+
+function KnowsList({ data, onChange }: { data: HomieData; onChange: (d: HomieData) => void }) {
   const toast = useToast();
   const [fact, setFact] = useState('');
   const tz = data.settings.tzOffsetMin;
@@ -290,7 +313,7 @@ function KnowsSheet({ data, onChange, onClose }: { data: HomieData; onChange: (d
   const tick = async (item: HomieItem) => setItem(await saveHomieItem({ id: item.id, done: !item.done }));
 
   return (
-    <Sheet title={`Things ${data.settings.name} knows`} onClose={onClose}>
+    <div>
       <form
         className="mb-4 flex gap-2"
         onSubmit={async (e) => {
@@ -338,15 +361,16 @@ function KnowsSheet({ data, onChange, onClose }: { data: HomieData; onChange: (d
         );
       })}
       <p className="text-xs text-stone-500">Only you can see these. Chat older than 30 days is removed automatically.</p>
-    </Sheet>
+    </div>
   );
 }
 
 // ---------- settings ----------
 
 const SIRI_URL = `${location.origin}/api/homie/siri?k=`;
+const MCP_URL = `${location.origin}/mcp/`;
 
-function SettingsSheet({ data, onSaved, onCleared, onClose }: { data: HomieData; onSaved: (s: HomieSettings) => void; onCleared: () => void; onClose: () => void }) {
+function SettingsSheet({ data, ai, onSaved, onCleared, onClose }: { data: HomieData; ai: boolean; onSaved: (s: HomieSettings) => void; onCleared: () => void; onClose: () => void }) {
   const toast = useToast();
   const [s, setS] = useState<HomieSettings>(data.settings);
   const [key, setKey] = useState<string | null>(null);
@@ -416,6 +440,9 @@ function SettingsSheet({ data, onSaved, onCleared, onClose }: { data: HomieData;
         <textarea rows={5} className={inputCls} value={s.about} maxLength={4000} onChange={(e) => set('about', e.target.value)} />
       </Field>
 
+      <ConnectClaude hasKey={data.hasSiri} />
+
+      {ai && (
       <section className="mb-4 rounded-2xl bg-stone-50 p-4 ring-1 ring-stone-200">
         <h3 className="font-semibold">Talk through Siri</h3>
         <p className="mt-1 text-sm text-stone-600">Make an iPhone Shortcut so "Hey Siri, {s.name}" takes what you say and reads the reply aloud. Works hands-free with earphones.</p>
@@ -454,6 +481,7 @@ function SettingsSheet({ data, onSaved, onCleared, onClose }: { data: HomieData;
           </div>
         )}
       </section>
+      )}
 
       <ConfirmButton
         label="Clear chat"
@@ -467,5 +495,113 @@ function SettingsSheet({ data, onSaved, onCleared, onClose }: { data: HomieData;
       />
       <p className="text-xs text-stone-500">Clearing the chat keeps your reminders, facts and notes.</p>
     </Sheet>
+  );
+}
+
+// ---------- without an API key: Claude app + connector ----------
+
+function ClaudeHome({ data, onChange, lines, onSettings }: { data: HomieData; onChange: (d: HomieData) => void; lines: Line[]; onSettings: () => void }) {
+  const toast = useToast();
+  const [text, setText] = useState('');
+  const [when, setWhen] = useState('');
+  const brief = [...lines].reverse().find((l) => l.role === 'assistant' && Date.now() - Date.parse(l.at) < 18 * 3600_000);
+
+  const addReminder = async () => {
+    const at = localToUtc(when, data.settings.tzOffsetMin);
+    if (!text.trim() || !at) return;
+    const row = await saveHomieItem({ kind: 'reminder', text: text.trim(), at });
+    onChange({ ...data, items: [row, ...data.items] });
+    setText('');
+    setWhen('');
+    toast(`Reminder set for ${friendlyWhen(at, data.settings.tzOffsetMin)}`);
+  };
+
+  return (
+    <div className="space-y-4 pb-8 pt-4">
+      {!data.hasSiri ? (
+        <div className="rounded-3xl bg-gradient-to-br from-teal-700 to-sky-700 p-5 text-white">
+          <p className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-teal-100">
+            <Sparkles size={14} /> {data.settings.name}
+          </p>
+          <p className="mt-1 text-lg font-semibold">Talk to {data.settings.name} in the Claude app</p>
+          <p className="mt-1 text-sm text-teal-50">
+            Connect HomeManager to Claude once. Then type or use voice mode in Claude to set reminders, log habits and expenses, or ask what's on today. It runs on your Claude plan, at no extra cost.
+          </p>
+          <button onClick={onSettings} className="mt-3 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-teal-800">
+            Set it up
+          </button>
+        </div>
+      ) : (
+        <p className="rounded-2xl bg-teal-50 px-4 py-3 text-sm text-teal-900 ring-1 ring-teal-200">
+          Talk to {data.settings.name} in the Claude app (HomeManager connector). Reminders and briefs arrive here as notifications.
+        </p>
+      )}
+
+      {brief && (
+        <section className="rounded-2xl bg-white p-4 ring-1 ring-stone-200">
+          <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-stone-500">Latest brief</h3>
+          <p className="whitespace-pre-wrap text-sm text-stone-900">{brief.text}</p>
+        </section>
+      )}
+
+      <section className="rounded-2xl bg-white p-4 ring-1 ring-stone-200">
+        <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">
+          <Bell size={15} /> Quick reminder
+        </h3>
+        <input className={`${inputCls} mb-2`} placeholder="What to remind you about" value={text} onChange={(e) => setText(e.target.value)} />
+        <div className="flex gap-2">
+          <input type="datetime-local" className={inputCls} value={when} onChange={(e) => setWhen(e.target.value)} />
+          <PrimaryButton onClick={addReminder} disabled={!text.trim() || !when} className="shrink-0 px-4 py-2">
+            Set
+          </PrimaryButton>
+        </div>
+      </section>
+
+      <KnowsList data={data} onChange={onChange} />
+    </div>
+  );
+}
+
+function ConnectClaude({ hasKey }: { hasKey: boolean }) {
+  const toast = useToast();
+  const [key, setKey] = useState<string | null>(null);
+  return (
+    <section className="mb-4 rounded-2xl bg-stone-50 p-4 ring-1 ring-stone-200">
+      <h3 className="font-semibold">Connect the Claude app</h3>
+      <p className="mt-1 text-sm text-stone-600">Lets Claude read and save your reminders, notes, habits, to-dos, shopping and expenses. Works in chats and voice mode, on your Claude plan.</p>
+      {!key ? (
+        <button
+          onClick={async () => {
+            try {
+              setKey(await makeSiriKey());
+            } catch (e) {
+              toast(e instanceof Error ? e.message : String(e));
+            }
+          }}
+          className="mt-3 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-teal-700 ring-1 ring-stone-200"
+        >
+          {hasKey ? 'Make a new connector link (the old one stops working)' : 'Make my connector link'}
+        </button>
+      ) : (
+        <div className="mt-3 space-y-2 text-sm">
+          <button
+            onClick={() => {
+              navigator.clipboard?.writeText(MCP_URL + key).then(() => toast('Link copied'), () => toast('Copy failed: select the link and copy it'));
+            }}
+            className="flex w-full items-center gap-2 rounded-xl bg-white px-3 py-2 text-left font-mono text-xs ring-1 ring-stone-200"
+          >
+            <Copy size={14} className="shrink-0" />
+            <span className="break-all">{MCP_URL + key}</span>
+          </button>
+          <ol className="list-decimal space-y-1 pl-5 text-stone-700">
+            <li>In Claude (claude.ai or the app), open Settings, Connectors, and tap "Add custom connector".</li>
+            <li>Name it HomeManager and paste the link above as the URL. Leave the advanced settings empty.</li>
+            <li>In a chat, turn on HomeManager from the + (tools) menu. It's then available on your phone too.</li>
+            <li>Try: "What's on my plate today?" or "Remind me to do knee exercises at 7 pm."</li>
+          </ol>
+          <p className="text-xs text-stone-500">Keep this link private: it works like a password to your Homie data.</p>
+        </div>
+      )}
+    </section>
   );
 }

@@ -6,7 +6,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import type { BetaMessageParam, BetaTextBlockParam, BetaToolUnion, BetaContentBlock, BetaToolResultBlockParam } from '@anthropic-ai/sdk/resources/beta/messages/messages';
 import { DEFAULT_EXPENSE_CATEGORIES } from '../src/types';
-import { cleanSettingsPatch, friendlyWhen, homieSettings, isDate, localToday, localToUtc, type HomieAction, type HomieChatLine, type HomieSettings } from '../src/lib/homie';
+import { buildBrief, cleanSettingsPatch, friendlyWhen, homieSettings, isDate, localToday, localToUtc, type BriefContext, type HomieAction, type HomieChatLine, type HomieSettings } from '../src/lib/homie';
 
 export const DEFAULT_MODEL = 'claude-opus-5-5';
 const MAX_ROUNDS = 6;
@@ -341,7 +341,9 @@ const BRIEF_ASK = {
     "Write my evening wrap-up as a phone notification: at most 3 short sentences, under 300 characters, plain text. Say which of today's habits got done and which didn't, what's first tomorrow, and when to be in bed to hit my wake time (about 7.5 hours before it). Use my tone.",
 };
 
-export async function writeBrief(opts: { apiKey: string; model?: string; kind: 'morning' | 'evening'; ctx: HomieContext }): Promise<string | null> {
+// Written by Claude when the app has an API key, otherwise built from rules.
+export async function writeBrief(opts: { apiKey?: string; model?: string; kind: 'morning' | 'evening'; ctx: HomieContext }): Promise<string | null> {
+  if (!opts.apiKey) return buildBrief(opts.ctx as unknown as BriefContext, opts.kind);
   const res = await client(opts.apiKey).beta.messages.create({
     model: opts.model || DEFAULT_MODEL,
     max_tokens: 2000,
