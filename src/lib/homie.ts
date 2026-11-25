@@ -1,10 +1,11 @@
 // Homie: the personal assistant. Pure helpers shared by the app and the Worker.
 // Homie's data is per account (hm_homie_*), never shared with the household.
+import { DEFAULT_TRAINING, isGymType, missedGym, todaySession, type TrainingSettings, type Workout } from './training';
 
 export type HomieTone = 'gentle' | 'firm' | 'drill';
 export type HomieItemKind = 'fact' | 'note' | 'reminder' | 'busy';
 
-export interface HomieSettings {
+export interface HomieSettings extends TrainingSettings {
   name: string; // what the assistant is called
   tone: HomieTone;
   wake: string; // HH:MM target wake-up
@@ -36,6 +37,7 @@ export const DEFAULT_HOMIE: HomieSettings = {
   interests: [],
   nudges: true,
   tzOffsetMin: 330,
+  ...DEFAULT_TRAINING,
 };
 
 export function homieSettings(raw: Partial<HomieSettings> | null | undefined): HomieSettings {
@@ -63,7 +65,7 @@ export interface HomieChatLine {
 
 // What Homie did on one request, shown under its reply.
 export interface HomieAction {
-  kind: 'reminder' | 'fact' | 'note' | 'busy' | 'todo' | 'shopping' | 'expense' | 'habit' | 'done' | 'forget' | 'settings';
+  kind: 'reminder' | 'fact' | 'note' | 'busy' | 'todo' | 'shopping' | 'expense' | 'habit' | 'done' | 'forget' | 'settings' | 'workout';
   label: string;
   itemId?: string; // a Homie item, so it can be undone
 }
@@ -121,6 +123,10 @@ export function cleanSettingsPatch(patch: Record<string, unknown>): Partial<Homi
   for (const k of ['morningBrief', 'eveningBrief', 'nudges'] as const) if (typeof patch[k] === 'boolean') out[k] = patch[k];
   if (Array.isArray(patch.interests)) out.interests = cleanInterests(patch.interests);
   if (typeof patch.about === 'string') out.about = patch.about.slice(0, 4000);
+  for (const k of ['trainingStart', 'goalDate'] as const) if (isDate(patch[k]) || (k === 'trainingStart' && patch[k] === '')) out[k] = patch[k] as string;
+  if (Array.isArray(patch.gymDays) && patch.gymDays.length <= 6 && patch.gymDays.every((d) => Number.isInteger(d) && d >= 0 && d <= 6)) {
+    out.gymDays = [...new Set(patch.gymDays as number[])].sort();
+  }
   return out;
 }
 
@@ -145,6 +151,7 @@ export interface BriefContext {
     plans?: { title: string; start: string; end: string }[];
     todos?: { title: string; due: string | null }[];
   } | null;
+  workouts?: Workout[]; // own training log, last few weeks
 }
 
 const PUSH: Record<HomieTone, { morning: string; evening: string }> = {
@@ -191,6 +198,8 @@ export function buildBrief(ctx: BriefContext, kind: 'morning' | 'evening'): stri
     if (busy.length) parts.push(`Busy: ${list(busy, 2)}.`);
     const habits = habitsDue(ctx, day).filter((h) => h.today < h.target).map((h) => h.name);
     if (habits.length) parts.push(`Habits: ${list(habits)}.`);
+    const t = todaySession(s, day, ctx.workouts ?? []);
+    if (t) parts.push(`Training: ${t.title} (${t.minutes} min).${t.note ? ` ${t.note}` : ''}`);
     if (rem.length) parts.push(`${rem.length} reminder${rem.length > 1 ? 's' : ''}: ${list(rem, 2)}.`);
     const bills = (ctx.home?.billsDue ?? []).filter((b) => b.due <= today).map((b) => b.name);
     if (bills.length) parts.push(`Bills due: ${list(bills)}.`);
@@ -202,6 +211,8 @@ export function buildBrief(ctx: BriefContext, kind: 'morning' | 'evening'): stri
     const done = due.filter((h) => h.today >= h.target).map((h) => h.name);
     const missed = due.filter((h) => h.today < h.target).map((h) => h.name);
     if (done.length || missed.length) parts.push(missed.length ? `Done: ${done.length}/${due.length}. Still open: ${list(missed)}.` : `All ${done.length} habits done today.`);
+    const t = todaySession(s, today, ctx.workouts ?? []);
+    if (t && isGymType(t.type)) parts.push((ctx.workouts ?? []).some((w) => w.date === today && w.complete) ? `Training done: ${t.title}.` : `Training not logged: ${t.title}.`);
     parts.push(office ? `Tomorrow is an office day, leave by ${s.leave}.` : 'No office tomorrow.');
     if (busy.length) parts.push(`Busy tomorrow: ${list(busy, 2)}.`);
     if (rem.length) parts.push(`First up: ${rem[0]}.`);
@@ -242,7 +253,11 @@ export function buildNudge(ctx: BriefContext, kind: 'leave' | 'saver' | 'bed'): 
     return `Time to leave: about ${s.commuteMin} min to office.${busy.length ? ` Busy day: ${busy[0]}.` : ''} ${tail}`;
   }
   if (kind === 'saver') {
-    const open = habitsDue(ctx, today).filter((h) => h.today < h.target);
+    const open: { name: string; schedule: string; perWeek: number | null; days: number[] | null; daysDoneLast7: number }[] = habitsDue(ctx, today).filter((h) => h.today < h.target);
+    const t = todaySession(s, today, ctx.workouts ?? []);
+    if (t && isGymType(t.type) && !(ctx.workouts ?? []).some((w) => w.date === today && w.complete)) {
+      open.unshift({ name: t.title, schedule: 'daily', perWeek: null, days: null, daysDoneLast7: 7 - missedGym(s, today, ctx.workouts ?? []) });
+    }
     if (!open.length) return null;
     // Missed days this week for the most-skipped open habit.
     const missed = Math.max(...open.map((h) => Math.max(0, (h.schedule === 'weekly' ? (h.perWeek ?? 1) : h.schedule === 'days' ? (h.days ?? []).length : 7) - h.daysDoneLast7)));

@@ -3,6 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { cleanInterests, DEFAULT_HOMIE, friendlyWhen, localToUtc, sortItems, WEEKDAYS, type HomieAction, type HomieChatLine, type HomieItem, type HomieSettings } from '../lib/homie';
 import { askHomie, clearHomieChat, loadHomie, makeSiriKey, saveHomieItem, saveHomieSettings, type HomieData } from '../store/homie';
 import { useStore } from '../store/store';
+import { TrainingCard } from './HomieTraining';
 import { useToast } from './toast';
 import { ConfirmButton, Field, inputCls, PrimaryButton, Segmented, Sheet, Toggle } from './ui';
 
@@ -443,6 +444,32 @@ function SettingsSheet({ data, ai, onSaved, onCleared, onClose }: { data: HomieD
         <textarea rows={5} className={inputCls} value={s.about} maxLength={4000} onChange={(e) => set('about', e.target.value)} />
       </Field>
 
+      {s.trainingStart && (
+        <section className="mb-4 rounded-2xl bg-stone-50 p-4 ring-1 ring-stone-200">
+          <h3 className="font-semibold">Training plan</h3>
+          <p className="mt-1 text-xs text-stone-500">Started {s.trainingStart}. Phases count from this date.</p>
+          <p className="mb-1 mt-3 text-xs font-medium text-stone-500">Gym days</p>
+          <div className="flex gap-1">
+            {WEEKDAYS.map((d, i) => {
+              const on = s.gymDays.includes(i);
+              return (
+                <button key={d} onClick={() => set('gymDays', on ? s.gymDays.filter((x) => x !== i) : [...s.gymDays, i].sort())} className={`flex-1 rounded-lg py-2 text-xs font-semibold ${on ? 'bg-teal-700 text-white' : 'bg-white text-stone-600 ring-1 ring-stone-200'}`}>
+                  {d}
+                </button>
+              );
+            })}
+          </div>
+          <div className="mt-3">
+            <Field label="Goal date (the trip you're training for)">
+              <input type="date" className={inputCls} value={s.goalDate} onChange={(e) => e.target.value && set('goalDate', e.target.value)} />
+            </Field>
+          </div>
+          <button onClick={() => set('trainingStart', '')} className="text-sm font-semibold text-rose-700">
+            Stop the plan
+          </button>
+        </section>
+      )}
+
       <Field label="Interests to watch" hint="One per line. A daily scout in your Claude app looks these up (shows near you, big news) and notifies you about new finds. Only you see them.">
         <textarea rows={4} className={inputCls} value={interests} placeholder={'Samay Raina shows\nPure Storage (PSTG) stock\nBig Indian market news'} onChange={(e) => setInterests(e.target.value)} />
       </Field>
@@ -550,6 +577,8 @@ function ClaudeHome({ data, onChange, lines, onSettings }: { data: HomieData; on
           <p className="whitespace-pre-wrap text-sm text-stone-900">{brief.text}</p>
         </section>
       )}
+
+      <TrainingCard data={data} onChange={onChange} />
 
       <section className="rounded-2xl bg-white p-4 ring-1 ring-stone-200">
         <h3 className="mb-2 flex items-center gap-1.5 text-sm font-semibold">

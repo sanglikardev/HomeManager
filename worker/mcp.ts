@@ -3,7 +3,7 @@
 // made by hm_homie_siri_key). Claude does the talking on the person's own Claude plan; these tools
 // read and write Homie's data with the same functions the app uses.
 
-import { runTool, TOOLS, type HomieContext, type Notify, type Rpc } from './homie';
+import { runTool, trainingView, TOOLS, type HomieContext, type Notify, type Rpc } from './homie';
 
 const VERSIONS = ['2025-11-25', '2025-06-18', '2025-03-26', '2024-11-05'];
 
@@ -15,12 +15,13 @@ Call get_overview at the start of a conversation (and before planning or filing 
 - Household: add_todo, add_shopping, log_expense (rupees), log_habit (habit id from the overview).
 - Routine changes (wake time, office days, tone, briefs, nudges): update_settings. Interests the daily scout watches: update_interests.
 - More data on request: lookup (plans with checklists, to-dos, upkeep, bills, documents, habit history, their expenses, everything saved before). Trips and events: add_plan, add_plan_tasks, tick_plan_tasks. Done to-dos: complete_todo.
+- Training (gym + knee rehab toward their goal date): overview.training.today is today's session. log_workout when they train (ask how the knee felt, 0-10); set_training to start or change the plan. Push them in their tone, but knee pain wins: never push through pain, 6+ means rest and their physio.
 - Things you found on the web for them: save_find (so they aren't repeated). Interrupt them with notify only when it's worth it.
 - Confirm briefly what you saved. Don't file small talk. For pain or injury, suggest a doctor or physio; never diagnose.`;
 
 const OVERVIEW_TOOL = {
   name: 'get_overview',
-  description: "Their local time, routine and settings, open reminders, facts, notes, busy days, and the home's habits, to-dos, bills due, plans and shopping list. Call this first.",
+  description: "Their local time, routine and settings, today's training session, open reminders, facts, notes, busy days, and the home's habits, to-dos, bills due, plans and shopping list. Call this first.",
   inputSchema: { type: 'object', properties: {}, additionalProperties: false },
 };
 
@@ -74,7 +75,7 @@ export async function handleMcp(msg: RpcMessage, key: string, rpc: Rpc, notify?:
       }
       if (name === 'get_overview') {
         const { chat: _chat, ...rest } = ctx;
-        return reply(msg.id, text(JSON.stringify(rest)));
+        return reply(msg.id, text(JSON.stringify({ ...rest, training: trainingView(ctx) })));
       }
       if (!TOOLS.some((t) => (t as { name: string }).name === name)) return failure(msg.id, -32602, `Unknown tool: ${name}`);
       try {

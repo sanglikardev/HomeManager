@@ -53,6 +53,11 @@ upkeep task, plan, document, help day off, bug/idea.
   leave / saver / bed (`buildNudge`, once a day each, off with settings.nudges). Interests live in the person's
   own Homie settings; a daily "Homie scout" scheduled task in the owner's Claude account uses the connector
   to search the web for them, save finds and notify. Everything Homie is per account, never shared.
+  Training (0029): `src/lib/training.ts` builds a gym + knee rehab plan in phases (foundation, strength,
+  power, build, ski, taper) from settings trainingStart / gymDays / goalDate (default 2028-01-10). The log is
+  private: `hm_homie_workouts` (one row per person per day, knee pain 0-10), `hm_homie_workout_save`,
+  `hm_homie_workouts`. Knee pain 4+ scales the next session down, 6+ means rest and physio. Shown in Homie
+  (`HomieTraining.tsx`), briefs, the streak saver and the connector (training in get_overview, log_workout, set_training).
 
 Meal and pantry suggestions are rule-based. AI is used only in Homie (owner approved on 2026-11-25).
 
@@ -117,7 +122,7 @@ Check the result with the GitHub check run on the commit.
   hm_dishes, hm_meals, hm_shopping, hm_pantry_events, hm_upkeep, hm_plans, hm_expenses, hm_bills,
   hm_data_tables, hm_config, hm_expense_sharing, hm_sms_keys, hm_sms_seen,
   hm_feedback, hm_feedback_failures, hm_staff, hm_docs, hm_doc_files, hm_todos, hm_habits, hm_habit_logs,
-  hm_push_subs, hm_widget_keys, hm_homie_settings, hm_homie_items, hm_homie_chat.
+  hm_push_subs, hm_widget_keys, hm_homie_settings, hm_homie_items, hm_homie_chat, hm_homie_workouts.
   `hm_members` is an unused leftover.
 - Document files are base64 rows in `hm_doc_files` (written via hm_upsert, read one at a
   time with `hm_doc_file(token, id)`, never in hm_load). Photos are shrunk client-side.

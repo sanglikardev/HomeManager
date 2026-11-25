@@ -8,6 +8,8 @@ import type { BetaMessageParam, BetaTextBlockParam, BetaToolUnion, BetaContentBl
 import { DEFAULT_EXPENSE_CATEGORIES } from '../src/types';
 import { buildBrief, cleanInterests, cleanSettingsPatch, friendlyWhen, homieSettings, isDate, localToday, localToUtc, type BriefContext, type HomieAction, type HomieChatLine, type HomieSettings } from '../src/lib/homie';
 
+import { addDays, cleanWorkout, plannedType, todaySession, weekStrip, type Workout } from '../src/lib/training';
+
 export const DEFAULT_MODEL = 'claude-opus-5-5';
 const MAX_ROUNDS = 6;
 
@@ -20,6 +22,7 @@ export interface HomieContext {
   settings: Partial<HomieSettings>;
   items: { id: string; kind: string; text: string; at: string | null; day: string | null; done: boolean }[];
   chat: HomieChatLine[];
+  workouts?: Workout[];
   home: {
     habits: { id: string; name: string; kind: string; target: number; unit: string }[];
     [k: string]: unknown;
@@ -52,11 +55,20 @@ About them
 
 const TONE: Record<string, string> = { gentle: 'gentle', firm: 'firm', drill: 'drill' };
 
+// Today's training session and the last 7 days, for Claude (null when no plan is started).
+export function trainingView(ctx: HomieContext) {
+  const s = homieSettings(ctx.settings);
+  const today = ctx.now.slice(0, 10);
+  const session = todaySession(s, today, ctx.workouts ?? []);
+  if (!session) return null;
+  return { today: session, log: ctx.workouts?.find((w) => w.date === today) ?? null, last7: weekStrip(s, today, ctx.workouts ?? []) };
+}
+
 export function contextBlock(ctx: HomieContext): string {
   const s = homieSettings(ctx.settings);
   const { chat: _chat, ...rest } = ctx;
   return `Settings and current data (JSON). Times are the user's local time unless marked UTC.
-${JSON.stringify({ ...rest, settings: { ...s, tone: TONE[s.tone] ?? 'firm' } })}`;
+${JSON.stringify({ ...rest, settings: { ...s, tone: TONE[s.tone] ?? 'firm' }, training: trainingView(ctx) })}`;
 }
 
 // ---------- tools ----------
@@ -159,12 +171,12 @@ export const TOOLS: BetaToolUnion[] = [
   {
     name: 'lookup',
     description:
-      'Read more of their data. plans: trips and events with checklists (ids for add_plan_tasks / tick_plan_tasks). todos: household to-dos with ids. upkeep, bills, documents (titles and expiry). habit_logs: what was logged when, with notes (workouts, PRs). expenses: their own spending with totals by category. my_history: everything they asked you to keep, including done reminders and scout finds. from/to are YYYY-MM-DD or null; search filters by name or text.',
+      'Read more of their data. plans: trips and events with checklists (ids for add_plan_tasks / tick_plan_tasks). todos: household to-dos with ids. upkeep, bills, documents (titles and expiry). habit_logs: what was logged when, with notes (workouts, PRs). expenses: their own spending with totals by category. workouts: their own training log (sessions, knee pain 0-10, notes). my_history: everything they asked you to keep, including done reminders and scout finds. from/to are YYYY-MM-DD or null; search filters by name or text.',
     strict: true,
     input_schema: {
       type: 'object',
       properties: {
-        what: { type: 'string', enum: ['plans', 'todos', 'upkeep', 'bills', 'documents', 'habit_logs', 'expenses', 'my_history'] },
+        what: { type: 'string', enum: ['plans', 'todos', 'upkeep', 'bills', 'documents', 'habit_logs', 'expenses', 'my_history', 'workouts'] },
         from: nstr,
         to: nstr,
         search: nstr,
@@ -228,6 +240,36 @@ export const TOOLS: BetaToolUnion[] = [
     description: 'Save something worth their attention that you found (a show, news, a deal) so they can see it later and it is not repeated.',
     strict: true,
     input_schema: { type: 'object', properties: { title: str, detail: str, url: nstr }, required: ['title', 'detail', 'url'], additionalProperties: false },
+  },
+  {
+    name: 'log_workout',
+    description:
+      "Log their training for a day (today when date is null): complete true when the whole session is done, or exercises = the keys they did (from training.today.exercises). knee = knee pain 0-10 after training, if they said. Saving again replaces that day's log. Pain 4+ makes the next session easier automatically; for 6+ tell them to see their physio.",
+    strict: true,
+    input_schema: {
+      type: 'object',
+      properties: {
+        date: nstr,
+        complete: { type: 'boolean' },
+        exercises: { type: ['array', 'null'], items: { type: 'string' } },
+        knee: { type: ['integer', 'null'] },
+        note: nstr,
+      },
+      required: ['date', 'complete', 'exercises', 'knee', 'note'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'set_training',
+    description:
+      'Start or change their training plan (gym plus knee rehab in phases toward a goal date, default the Jan 2028 ski trip). start: YYYY-MM-DD to start or restart, "" to stop, null to keep. gymDays: weekdays for the gym (0 = Sunday, 3 or 4 days work best), null to keep. goalDate: YYYY-MM-DD or null to keep.',
+    strict: true,
+    input_schema: {
+      type: 'object',
+      properties: { start: nstr, gymDays: { type: ['array', 'null'], items: { type: 'integer' } }, goalDate: nstr },
+      required: ['start', 'gymDays', 'goalDate'],
+      additionalProperties: false,
+    },
   },
   {
     name: 'notify',
@@ -340,6 +382,10 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
     }
     case 'lookup': {
       const what = String(input.what);
+      if (what === 'workouts') {
+        const out = await rpc('hm_homie_workouts', { p_token: token, p_from: isDate(input.from) ? input.from : null, p_to: isDate(input.to) ? input.to : null });
+        return { result: JSON.stringify(out) };
+      }
       const out = await rpc('hm_homie_lookup', {
         p_token: token,
         p_what: what,
@@ -411,6 +457,40 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
       const text = `Scout: ${title}. ${clip(input.detail, 800)}${url ? ` ${url}` : ''}`;
       const row = await saveItem({ kind: 'note', text });
       return { result: `saved, id ${row.id}`, action: { kind: 'note', label: `Saved find: ${title}`, itemId: row.id } };
+    }
+    case 'log_workout': {
+      if (!s.trainingStart) return fail('no training plan yet; start one with set_training');
+      const date = input.date == null ? today : isDate(input.date) && input.date <= today && input.date >= addDays(today, -14) ? input.date : null;
+      if (!date) return fail('date must be YYYY-MM-DD within the last 14 days, or null for today');
+      const plan = todaySession(s, date, (ctx.workouts ?? []).filter((w) => w.date !== date));
+      const keys = plan?.exercises.map((e) => e.key) ?? [];
+      const prev = ctx.workouts?.find((w) => w.date === date);
+      const picked = Array.isArray(input.exercises) ? (input.exercises as string[]) : [];
+      const done = input.complete === true ? keys : [...new Set([...(prev?.done ?? []), ...picked.filter((k) => keys.includes(k))])];
+      const w = cleanWorkout({
+        date,
+        session: plan?.type ?? plannedType(s, date),
+        done,
+        complete: input.complete === true || (keys.length > 0 && keys.every((k) => done.includes(k))),
+        knee: typeof input.knee === 'number' ? input.knee : prev?.knee ?? null,
+        note: typeof input.note === 'string' ? input.note : prev?.note ?? '',
+      });
+      await rpc('hm_homie_workout_save', { p_token: token, p_workout: w });
+      ctx.workouts = [...(ctx.workouts ?? []).filter((x) => x.date !== date), w];
+      const label = `${plan?.title ?? 'Training'}: ${w.complete ? 'done' : `${w.done.length}/${keys.length} exercises`}${w.knee != null ? `, knee ${w.knee}/10` : ''}`;
+      return { result: `logged${w.knee != null && w.knee >= 6 ? '. Knee 6+: tell them to rest and see their physio' : ''}`, action: { kind: 'workout', label } };
+    }
+    case 'set_training': {
+      const patch = cleanSettingsPatch({ trainingStart: input.start, gymDays: input.gymDays, goalDate: input.goalDate });
+      if (!Object.keys(patch).length) return fail('nothing valid to change (dates are YYYY-MM-DD, gymDays 0-6)');
+      const next = { ...s, ...patch };
+      await rpc('hm_homie_save_settings', { p_token: token, p_settings: next });
+      ctx.settings = next;
+      const t = todaySession(next, today, ctx.workouts ?? []);
+      return {
+        result: next.trainingStart ? `saved. Today: ${t ? `${t.title}, ${t.phaseLabel}, week ${t.week}` : `plan starts ${next.trainingStart}`}` : 'training plan stopped',
+        action: { kind: 'settings', label: next.trainingStart ? `Training plan from ${next.trainingStart}, gym ${next.gymDays.map((d) => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d]).join('/')}` : 'Training plan stopped' },
+      };
     }
     case 'notify': {
       if (!notify) return fail('notifications are not available here');

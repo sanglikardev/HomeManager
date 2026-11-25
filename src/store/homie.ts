@@ -1,6 +1,7 @@
 // Homie's calls: data through token-checked database functions, the chat through the Worker
 // (which holds the Claude API key).
 import { homieSettings, type HomieAction, type HomieChatLine, type HomieItem, type HomieSettings } from '../lib/homie';
+import type { Workout } from '../lib/training';
 import { getToken, supabase } from './backend';
 
 async function call<T>(fn: string, args: Record<string, unknown> = {}): Promise<T> {
@@ -15,12 +16,15 @@ export interface HomieData {
   hasSiri: boolean;
   items: HomieItem[];
   chat: HomieChatLine[];
+  workouts: Workout[]; // own training log, last 8 weeks
 }
 
 export async function loadHomie(): Promise<HomieData> {
-  const raw = await call<{ settings: Partial<HomieSettings> | null; hasSiri: boolean; items: HomieItem[]; chat: HomieChatLine[] }>('hm_homie_load');
-  return { settings: homieSettings(raw.settings), firstTime: !raw.settings, hasSiri: raw.hasSiri, items: raw.items, chat: raw.chat };
+  const raw = await call<{ settings: Partial<HomieSettings> | null; hasSiri: boolean; items: HomieItem[]; chat: HomieChatLine[]; workouts?: Workout[] }>('hm_homie_load');
+  return { settings: homieSettings(raw.settings), firstTime: !raw.settings, hasSiri: raw.hasSiri, items: raw.items, chat: raw.chat, workouts: raw.workouts ?? [] };
 }
+
+export const saveWorkout = (w: Workout) => call<Workout>('hm_homie_workout_save', { p_workout: w });
 
 export const saveHomieSettings = (s: HomieSettings) => call<void>('hm_homie_save_settings', { p_settings: s });
 
